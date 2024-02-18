@@ -8,7 +8,7 @@ const connectDB = require('./config/db')
 const { errorHandler, notFound } = require("./middlewares/errorMiddleware");
 const path =require('path')
 
-
+const cors = require("cors");
 
 
 const app = express()

@@ -75,8 +75,19 @@ const SideDrawer = () => {
       const { data } = await axios.get(`/api/user?search=${search}`, config);
 
       setLoading(false);
-      setSearchResult(data);
+      if (data.length === 0) {
+        toast({
+          title: "No such user exists",
+          status: "info",
+          duration: 3000,
+          isClosable: true,
+          position: "top-left",
+        });
+      } else {
+        setSearchResult(data);
+      }
     } catch (error) {
+      setLoading(false);
       toast({
         title: "Error Occurred",
         status: "error",
@@ -86,6 +97,7 @@ const SideDrawer = () => {
       });
     }
   };
+
 
   const accessChat = async (userId) => {
     try {

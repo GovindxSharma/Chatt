@@ -13,7 +13,7 @@ import UpdateGroupChatModal from '../Miscellaneous/UpdateGroupChatModal.js'
 import './style.css'
 
 
-const ENDPOINT = "http://localhost:5000"; // "https://talk-a-tive.herokuapp.com"; -> After deployment
+const ENDPOINT = "https://chat-to-talk.onrender.com"; // "https://talk-a-tive.herokuapp.com"; -> After deployment
 var socket, selectedChatCompare;
 
 

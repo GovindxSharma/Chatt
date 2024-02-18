@@ -8,7 +8,7 @@ const connectDB = require('./config/db')
 const { errorHandler, notFound } = require("./middlewares/errorMiddleware");
 const path =require('path')
 
-const cors = require("cors");
+
 
 
 const app = express()
@@ -34,19 +34,7 @@ app.use('/api/message', messageRoutes)
 
 
 
-const allowedOrigins = ["https://harmonious-jalebi-601b8e.netlify.app"];
 
-const corsOptions = {
-  origin: function (origin, callback) {
-    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
-  },
-};
-
-app.use(cors(corsOptions));
 
 //------------------------------DEPLOYMENT---------------------------------//
 
@@ -74,10 +62,12 @@ const server=app.listen(PORT, () => {
     console.log(`Server is up and running at Port:${PORT}`)
 })
 
+
+const SOCKET_URL=process.env.URL
 const io = require("socket.io")(server, {
   pingTimeout: 60000,
   cors: {
-    origin: "https://harmonious-jalebi-601b8e.netlify.app",
+    origin: SOCKET_URL,
   },
 });
 

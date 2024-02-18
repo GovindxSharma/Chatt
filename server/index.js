@@ -57,12 +57,12 @@ const server=app.listen(PORT, () => {
     console.log(`Server is up and running at Port:${PORT}`)
 })
 
-const io = require('socket.io')(server, {
-    pingTimeout:60000,
-    cors: {
-        origin:"http://localhost:3000"
-    }
-})
+const io = require("socket.io")(server, {
+  pingTimeout: 60000,
+  cors: {
+    origin: "https://harmonious-jalebi-601b8e.netlify.app/",
+  },
+});
 
 io.on('connection', (socket) => {
     // console.log('connected to socket.io')

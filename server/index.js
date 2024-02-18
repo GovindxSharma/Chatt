@@ -31,6 +31,23 @@ app.use('/api/user', userRoutes)
 app.use('/api/chat', chatRoutes)
 app.use('/api/message', messageRoutes)
 
+
+
+
+const allowedOrigins = ["https://harmonious-jalebi-601b8e.netlify.app"];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+};
+
+app.use(cors(corsOptions));
+
 //------------------------------DEPLOYMENT---------------------------------//
 
 const __dirname1 = path.resolve() 

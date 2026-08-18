@@ -24,6 +24,18 @@ const messageModel = mongoose.Schema(
       type: String,
       default: "",
     },
+    replyTo: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Message",
+    },
+    isEdited: {
+      type: Boolean,
+      default: false,
+    },
+    isPinned: {
+      type: Boolean,
+      default: false,
+    },
     chat: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Chat",

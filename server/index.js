@@ -142,6 +142,27 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Real-time message edit
+  socket.on("message edited", (data) => {
+    if (data && data.chatId) {
+      socket.in(data.chatId).emit("message edited updated", data);
+    }
+  });
+
+  // Real-time message pin
+  socket.on("message pinned", (data) => {
+    if (data && data.chatId) {
+      socket.in(data.chatId).emit("message pinned updated", data);
+    }
+  });
+
+  // Real-time chat clear
+  socket.on("chat cleared", (data) => {
+    if (data && data.chatId) {
+      socket.in(data.chatId).emit("chat cleared updated", data);
+    }
+  });
+
   // Disconnect / cleanup
   const handleDisconnect = () => {
     if (currentUserId && onlineUsers.has(currentUserId)) {

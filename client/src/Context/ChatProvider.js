@@ -11,7 +11,6 @@ const playSoundEffect = (type = "receive") => {
     const ctx = new AudioContext();
 
     if (type === "receive") {
-      // Pleasant dual-tone chime (F5 -> A5)
       const osc1 = ctx.createOscillator();
       const osc2 = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -34,7 +33,6 @@ const playSoundEffect = (type = "receive") => {
       osc2.start(ctx.currentTime + 0.08);
       osc2.stop(ctx.currentTime + 0.35);
     } else if (type === "send") {
-      // Subtle soft outgoing pop (C6)
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
@@ -52,7 +50,7 @@ const playSoundEffect = (type = "receive") => {
       osc.stop(ctx.currentTime + 0.12);
     }
   } catch (e) {
-    // AudioContext blocked or not allowed yet by user interaction
+    // AudioContext blocked before user interaction
   }
 };
 
@@ -67,11 +65,22 @@ const ChatProvider = ({ children }) => {
     const saved = localStorage.getItem("chatt_sound");
     return saved !== null ? JSON.parse(saved) : true;
   });
+  const [themeMode, setThemeMode] = useState(() => {
+    return localStorage.getItem("chatt_theme") || "light";
+  });
 
   const toggleSound = () => {
     setSoundEnabled((prev) => {
       const next = !prev;
       localStorage.setItem("chatt_sound", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const toggleThemeMode = () => {
+    setThemeMode((prev) => {
+      const next = prev === "light" ? "dark" : "light";
+      localStorage.setItem("chatt_theme", next);
       return next;
     });
   };
@@ -116,11 +125,15 @@ const ChatProvider = ({ children }) => {
         setOnlineUsers,
         soundEnabled,
         toggleSound,
+        themeMode,
+        toggleThemeMode,
         playNotificationSound,
         playSendSound,
       }}
     >
-      {children}
+      <div className={`theme-${themeMode}`} style={{ width: "100%", height: "100%" }}>
+        {children}
+      </div>
     </ChatContext.Provider>
   );
 };

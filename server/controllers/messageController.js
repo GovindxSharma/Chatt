@@ -13,6 +13,10 @@ const allMessages = asyncHandler(async (req, res) => {
       isDeleted: { $ne: true },
     })
       .populate("sender", "name pic email bio status")
+      .populate({
+        path: "replyTo",
+        populate: { path: "sender", select: "name pic email" },
+      })
       .populate("reactions.user", "name pic")
       .populate("chat");
     res.json(messages);
@@ -22,11 +26,11 @@ const allMessages = asyncHandler(async (req, res) => {
   }
 });
 
-//@description     Create New Message (Text, Audio, File, Image)
+//@description     Create New Message (Text, Audio, File, Reply)
 //@route           POST /api/message/
 //@access          Protected
 const sendMessage = asyncHandler(async (req, res) => {
-  const { content, chatId, fileUrl, fileType, fileName } = req.body;
+  const { content, chatId, fileUrl, fileType, fileName, replyTo } = req.body;
 
   if ((!content && !fileUrl) || !chatId) {
     res.status(400);
@@ -41,6 +45,7 @@ const sendMessage = asyncHandler(async (req, res) => {
     fileUrl: fileUrl || "",
     fileType: fileType || "",
     fileName: fileName || "",
+    replyTo: replyTo || undefined,
     chat: rawChatId,
   };
 
@@ -48,6 +53,10 @@ const sendMessage = asyncHandler(async (req, res) => {
     let message = await Message.create(newMessage);
 
     message = await message.populate("sender", "name pic email bio status");
+    message = await message.populate({
+      path: "replyTo",
+      populate: { path: "sender", select: "name pic email" },
+    });
     message = await message.populate("chat");
     message = await User.populate(message, {
       path: "chat.users",
@@ -61,6 +70,74 @@ const sendMessage = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error(error.message);
   }
+});
+
+//@description     Edit a Message Content
+//@route           PUT /api/message/:id/edit
+//@access          Protected
+const editMessage = asyncHandler(async (req, res) => {
+  const { content } = req.body;
+  const messageId = req.params.id;
+
+  if (!content || !content.trim()) {
+    res.status(400);
+    throw new Error("Message content cannot be empty");
+  }
+
+  let message = await Message.findById(messageId).populate("chat");
+
+  if (!message) {
+    res.status(404);
+    throw new Error("Message not found");
+  }
+
+  if (message.sender.toString() !== req.user._id.toString()) {
+    res.status(403);
+    throw new Error("Only the sender can edit this message");
+  }
+
+  message.content = content.trim();
+  message.isEdited = true;
+  await message.save();
+
+  message = await Message.findById(messageId)
+    .populate("sender", "name pic email bio status")
+    .populate({
+      path: "replyTo",
+      populate: { path: "sender", select: "name pic email" },
+    })
+    .populate("reactions.user", "name pic")
+    .populate("chat");
+
+  res.json(message);
+});
+
+//@description     Toggle Pin Message in Chat
+//@route           PUT /api/message/:id/pin
+//@access          Protected
+const togglePinMessage = asyncHandler(async (req, res) => {
+  const messageId = req.params.id;
+
+  let message = await Message.findById(messageId).populate("chat");
+
+  if (!message) {
+    res.status(404);
+    throw new Error("Message not found");
+  }
+
+  message.isPinned = !message.isPinned;
+  await message.save();
+
+  message = await Message.findById(messageId)
+    .populate("sender", "name pic email bio status")
+    .populate({
+      path: "replyTo",
+      populate: { path: "sender", select: "name pic email" },
+    })
+    .populate("reactions.user", "name pic")
+    .populate("chat");
+
+  res.json(message);
 });
 
 //@description     Delete a Message
@@ -96,6 +173,22 @@ const deleteMessage = asyncHandler(async (req, res) => {
   res.json({ message: "Message deleted successfully", _id: messageId, chatId: message.chat._id });
 });
 
+//@description     Clear Chat History
+//@route           DELETE /api/message/clear/:chatId
+//@access          Protected
+const clearChat = asyncHandler(async (req, res) => {
+  const { chatId } = req.params;
+
+  await Message.updateMany(
+    { chat: chatId },
+    { $set: { isDeleted: true, content: "This message was deleted", fileUrl: "" } }
+  );
+
+  await Chat.findByIdAndUpdate(chatId, { latestMessage: null });
+
+  res.json({ message: "Chat cleared successfully", chatId });
+});
+
 //@description     Toggle Emoji Reaction on a Message
 //@route           PUT /api/message/:id/react
 //@access          Protected
@@ -121,10 +214,8 @@ const reactToMessage = asyncHandler(async (req, res) => {
   );
 
   if (existingReactionIndex > -1) {
-    // Remove reaction if already reacted with the same emoji
     message.reactions.splice(existingReactionIndex, 1);
   } else {
-    // Add reaction
     message.reactions.push({
       user: req.user._id,
       emoji: emoji,
@@ -135,6 +226,10 @@ const reactToMessage = asyncHandler(async (req, res) => {
 
   message = await Message.findById(messageId)
     .populate("sender", "name pic email")
+    .populate({
+      path: "replyTo",
+      populate: { path: "sender", select: "name pic email" },
+    })
     .populate("reactions.user", "name pic")
     .populate("chat");
 
@@ -144,6 +239,9 @@ const reactToMessage = asyncHandler(async (req, res) => {
 module.exports = {
   allMessages,
   sendMessage,
+  editMessage,
+  togglePinMessage,
   deleteMessage,
+  clearChat,
   reactToMessage,
 };

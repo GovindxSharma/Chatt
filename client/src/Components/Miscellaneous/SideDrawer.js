@@ -73,6 +73,8 @@ const SideDrawer = () => {
     onlineUsers,
     soundEnabled,
     toggleSound,
+    themeMode,
+    toggleThemeMode,
   } = ChatState();
 
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -232,6 +234,26 @@ const SideDrawer = () => {
         </Box>
 
         <HStack spacing={1}>
+          {/* Theme Mode Switcher */}
+          <Tooltip
+            label={themeMode === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
+            hasArrow
+          >
+            <IconButton
+              size="sm"
+              variant="ghost"
+              borderRadius="full"
+              aria-label="Toggle Theme"
+              icon={
+                <i
+                  className={themeMode === "dark" ? "fa-solid fa-sun" : "fa-solid fa-moon"}
+                  style={{ color: themeMode === "dark" ? "#f59e0b" : "#64748b" }}
+                ></i>
+              }
+              onClick={toggleThemeMode}
+            />
+          </Tooltip>
+
           {/* Sound Toggle Button */}
           <Tooltip
             label={soundEnabled ? "Sound enabled (click to mute)" : "Sound muted (click to enable)"}

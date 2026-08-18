@@ -94,7 +94,6 @@ export const encryptText = async (plaintext, chatId) => {
 export const decryptText = async (encryptedText, chatId) => {
   if (!encryptedText || typeof encryptedText !== "string") return encryptedText;
   if (!encryptedText.startsWith("enc:v1:")) {
-    // Unencrypted legacy message
     return encryptedText;
   }
 
@@ -120,12 +119,11 @@ export const decryptText = async (encryptedText, chatId) => {
     const decoder = new TextDecoder();
     return decoder.decode(decryptedBuffer);
   } catch (error) {
-    // Failed decryption fallback
     return encryptedText;
   }
 };
 
-// Decrypt single message object
+// Decrypt single message object including replyTo
 export const decryptMessageObject = async (message, chatId) => {
   if (!message) return message;
   const targetChatId = chatId || message.chat?._id || message.chat;
@@ -139,10 +137,20 @@ export const decryptMessageObject = async (message, chatId) => {
     ? await decryptText(message.fileName, targetChatId)
     : message.fileName;
 
+  let decryptedReplyTo = message.replyTo;
+  if (message.replyTo && message.replyTo.content) {
+    const replyContent = await decryptText(message.replyTo.content, targetChatId);
+    decryptedReplyTo = {
+      ...message.replyTo,
+      content: replyContent,
+    };
+  }
+
   return {
     ...message,
     content: decryptedContent,
     fileName: decryptedFileName,
+    replyTo: decryptedReplyTo,
     isEncrypted: message.content?.startsWith("enc:v1:"),
   };
 };

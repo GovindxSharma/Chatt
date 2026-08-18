@@ -22,6 +22,13 @@ import {
   MenuList,
   MenuItem,
   Badge,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  useDisclosure,
 } from "@chakra-ui/react";
 import { ArrowBackIcon, CloseIcon } from "@chakra-ui/icons";
 import { getSenderFull, getSender } from "../../config/ChatLogics";
@@ -72,6 +79,25 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
 
+  // Replying & Editing states
+  const [replyingMessage, setReplyingMessage] = useState(null);
+  const [editingMessage, setEditingMessage] = useState(null);
+
+  // Pinned Messages state
+  const [pinnedIndex, setPinnedIndex] = useState(0);
+
+  // Scroll to bottom FAB state
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+
+  // Clear Chat Modal state
+  const {
+    isOpen: isClearChatOpen,
+    onOpen: onClearChatOpen,
+    onClose: onClearChatClose,
+  } = useDisclosure();
+
   // File Attachment states
   const [attachedFile, setAttachedFile] = useState(null); // { url, type, name }
   const [uploadingFile, setUploadingFile] = useState(false);
@@ -114,6 +140,9 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
       : null;
   const isOtherUserOnline = otherUser && onlineUsers?.includes(otherUser._id);
 
+  // Pinned messages list
+  const pinnedMessages = messages.filter((m) => m.isPinned && !m.isDeleted);
+
   // Fetch chat messages and decrypt client-side
   const fetchMessages = async () => {
     if (!selectedChat) return;
@@ -152,7 +181,23 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     }
   };
 
-  // Upload file or image with Cloudinary + Data URL fallback
+  // Scroll to bottom
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    setShowScrollBottom(false);
+  };
+
+  // Scroll listener for FAB button
+  const handleScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop - clientHeight > 200) {
+      setShowScrollBottom(true);
+    } else {
+      setShowScrollBottom(false);
+    }
+  };
+
+  // Upload file or image
   const handleFileUpload = async (file, explicitType = "") => {
     if (!file) return;
     setUploadingFile(true);
@@ -179,9 +224,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           if (resData.url || resData.secure_url) {
             finalUrl = (resData.secure_url || resData.url).toString();
           }
-        } catch (e) {
-          // Cloudinary fallback to data URL
-        }
+        } catch (e) {}
       }
 
       if (!finalUrl) {
@@ -236,6 +279,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
         fileUrl: audioDataUrl,
         fileType: "audio",
         fileName: encryptedFileName,
+        replyTo: replyingMessage ? replyingMessage._id : undefined,
       };
 
       const { data } = await axios.post("/api/message", payload, config);
@@ -249,6 +293,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
       setMessages((prev) => [...prev, decryptedMsg]);
       setFetchAgain(!fetchAgain);
       setUploadingFile(false);
+      setReplyingMessage(null);
 
       toast({
         title: "Voice Note Sent!",
@@ -303,7 +348,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
         }
       };
 
-      mediaRecorder.start(200); // chunk every 200ms
+      mediaRecorder.start(200);
       setIsRecording(true);
       setRecordingDuration(0);
 
@@ -321,7 +366,6 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     }
   };
 
-  // Stop and automatically send voice note
   const stopAndSendRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
@@ -330,7 +374,6 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     }
   };
 
-  // Cancel voice recording without sending
   const cancelRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
       if (recordingStreamRef.current) {
@@ -350,7 +393,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
-  // Send standard E2EE message or attachment
+  // Send message / Save edited message
   const sendMessage = async (event) => {
     if (
       (event?.key === "Enter" || event?.type === "click") &&
@@ -360,11 +403,64 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
         socket.emit("stop typing", selectedChat._id);
       }
 
+      // Handle Edit Message Mode
+      if (editingMessage) {
+        try {
+          const config = {
+            headers: {
+              "Content-type": "application/json",
+              Authorization: `Bearer ${user.token}`,
+            },
+          };
+
+          const encryptedContent = await encryptText(newMessage.trim(), selectedChat._id);
+
+          const { data } = await axios.put(
+            `/api/message/${editingMessage._id}/edit`,
+            { content: encryptedContent },
+            config
+          );
+
+          if (socket) {
+            socket.emit("message edited", {
+              chatId: selectedChat._id,
+              message: data,
+            });
+          }
+
+          const decrypted = await decryptMessageObject(data, selectedChat._id);
+          setMessages((prev) =>
+            prev.map((msg) => (msg._id === editingMessage._id ? decrypted : msg))
+          );
+
+          setNewMessage("");
+          setEditingMessage(null);
+          toast({
+            title: "Message Edited",
+            status: "success",
+            duration: 2000,
+            isClosable: true,
+          });
+          return;
+        } catch (err) {
+          toast({
+            title: "Failed to edit message",
+            status: "error",
+            duration: 3000,
+            isClosable: true,
+          });
+          return;
+        }
+      }
+
+      // Standard Send Mode
       const contentToSend = newMessage.trim();
       const fileToSend = attachedFile;
+      const replyTarget = replyingMessage;
 
       setNewMessage("");
       setAttachedFile(null);
+      setReplyingMessage(null);
 
       try {
         const config = {
@@ -386,6 +482,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           fileUrl: fileToSend?.url || "",
           fileType: fileToSend?.type || "",
           fileName: encryptedFileName,
+          replyTo: replyTarget ? replyTarget._id : undefined,
         };
 
         const { data } = await axios.post("/api/message", payload, config);
@@ -408,6 +505,93 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           position: "bottom",
         });
       }
+    }
+  };
+
+  // Reply handler
+  const handleReplyMessage = (msg) => {
+    setReplyingMessage(msg);
+    setEditingMessage(null);
+  };
+
+  // Edit message handler
+  const handleEditMessage = (msg) => {
+    setEditingMessage(msg);
+    setNewMessage(msg.content);
+    setReplyingMessage(null);
+  };
+
+  // Pin message handler
+  const handlePinMessage = async (messageId) => {
+    try {
+      const config = {
+        headers: {
+          Authorization: `Bearer ${user.token}`,
+        },
+      };
+
+      const { data } = await axios.put(`/api/message/${messageId}/pin`, {}, config);
+
+      if (socket) {
+        socket.emit("message pinned", {
+          chatId: selectedChat._id,
+          message: data,
+        });
+      }
+
+      const decrypted = await decryptMessageObject(data, selectedChat._id);
+      setMessages((prev) =>
+        prev.map((msg) => (msg._id === messageId ? decrypted : msg))
+      );
+
+      toast({
+        title: decrypted.isPinned ? "Message Pinned" : "Message Unpinned",
+        status: "info",
+        duration: 2000,
+        isClosable: true,
+      });
+    } catch (err) {
+      toast({
+        title: "Could not pin message",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
+  };
+
+  // Clear conversation handler
+  const handleClearChat = async () => {
+    try {
+      const config = {
+        headers: {
+          Authorization: `Bearer ${user.token}`,
+        },
+      };
+
+      await axios.delete(`/api/message/clear/${selectedChat._id}`, config);
+
+      if (socket) {
+        socket.emit("chat cleared", { chatId: selectedChat._id });
+      }
+
+      setMessages([]);
+      onClearChatClose();
+      setFetchAgain(!fetchAgain);
+
+      toast({
+        title: "Chat History Cleared",
+        status: "info",
+        duration: 2500,
+        isClosable: true,
+      });
+    } catch (err) {
+      toast({
+        title: "Failed to clear chat",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
     }
   };
 
@@ -527,6 +711,8 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     setShowSearch(false);
     setSearchQuery("");
     setAttachedFile(null);
+    setReplyingMessage(null);
+    setEditingMessage(null);
     cancelRecording();
     // eslint-disable-next-line
   }, [selectedChat]);
@@ -588,14 +774,44 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
       }
     };
 
+    const handleEditUpdate = async (data) => {
+      if (selectedChatCompare && selectedChatCompare._id === data.chatId && data.message) {
+        const decrypted = await decryptMessageObject(data.message, data.chatId);
+        setMessages((prev) =>
+          prev.map((msg) => (msg._id === data.message._id ? decrypted : msg))
+        );
+      }
+    };
+
+    const handlePinUpdate = async (data) => {
+      if (selectedChatCompare && selectedChatCompare._id === data.chatId && data.message) {
+        const decrypted = await decryptMessageObject(data.message, data.chatId);
+        setMessages((prev) =>
+          prev.map((msg) => (msg._id === data.message._id ? decrypted : msg))
+        );
+      }
+    };
+
+    const handleClearUpdate = (data) => {
+      if (selectedChatCompare && selectedChatCompare._id === data.chatId) {
+        setMessages([]);
+      }
+    };
+
     socket?.on("message received", handleIncomingMessage);
     socket?.on("message reaction updated", handleReactionUpdate);
     socket?.on("message deleted updated", handleDeletionUpdate);
+    socket?.on("message edited updated", handleEditUpdate);
+    socket?.on("message pinned updated", handlePinUpdate);
+    socket?.on("chat cleared updated", handleClearUpdate);
 
     return () => {
       socket?.off("message received", handleIncomingMessage);
       socket?.off("message reaction updated", handleReactionUpdate);
       socket?.off("message deleted updated", handleDeletionUpdate);
+      socket?.off("message edited updated", handleEditUpdate);
+      socket?.off("message pinned updated", handlePinUpdate);
+      socket?.off("chat cleared updated", handleClearUpdate);
     };
   });
 
@@ -728,17 +944,105 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                 />
               </Tooltip>
 
-              {!selectedChat.isGroupChat ? (
-                <ProfileModal user={otherUser} />
-              ) : (
-                <UpdateGroupChatModal
-                  fetchMessages={fetchMessages}
-                  fetchAgain={fetchAgain}
-                  setFetchAgain={setFetchAgain}
+              {/* Chat Options Menu (Clear Chat, Profile, Settings) */}
+              <Menu>
+                <MenuButton
+                  as={IconButton}
+                  size="sm"
+                  variant="ghost"
+                  borderRadius="full"
+                  icon={<i className="fa-solid fa-ellipsis-vertical" style={{ color: "#64748b" }}></i>}
+                  aria-label="Chat Options"
                 />
-              )}
+                <MenuList p={2} borderRadius="xl" boxShadow="2xl">
+                  {!selectedChat.isGroupChat ? (
+                    <ProfileModal user={otherUser}>
+                      <MenuItem borderRadius="lg" icon={<i className="fa-solid fa-user"></i>}>
+                        View Profile
+                      </MenuItem>
+                    </ProfileModal>
+                  ) : (
+                    <UpdateGroupChatModal
+                      fetchMessages={fetchMessages}
+                      fetchAgain={fetchAgain}
+                      setFetchAgain={setFetchAgain}
+                    >
+                      <MenuItem borderRadius="lg" icon={<i className="fa-solid fa-gear"></i>}>
+                        Group Settings
+                      </MenuItem>
+                    </UpdateGroupChatModal>
+                  )}
+                  <MenuItem
+                    borderRadius="lg"
+                    icon={<i className="fa-solid fa-broom"></i>}
+                    color="red.500"
+                    onClick={onClearChatOpen}
+                  >
+                    Clear Chat History
+                  </MenuItem>
+                </MenuList>
+              </Menu>
             </HStack>
           </Box>
+
+          {/* Pinned Messages Banner */}
+          {pinnedMessages.length > 0 && (
+            <Box
+              w="100%"
+              bg="yellow.50"
+              borderBottom="1px solid"
+              borderColor="yellow.200"
+              px={3}
+              py={1.5}
+              display="flex"
+              alignItems="center"
+              justifyContent="space-between"
+            >
+              <HStack spacing={2} overflow="hidden" flex="1">
+                <i className="fa-solid fa-thumbtack" style={{ color: "#ca8a04", fontSize: "11px" }}></i>
+                <Box overflow="hidden" flex="1">
+                  <Text fontSize="xs" fontWeight="700" color="yellow.900" isTruncated>
+                    Pinned Message {pinnedMessages.length > 1 && `(${pinnedIndex + 1}/${pinnedMessages.length})`}
+                  </Text>
+                  <Text
+                    fontSize="xs"
+                    color="yellow.800"
+                    isTruncated
+                    cursor="pointer"
+                    onClick={() => {
+                      const msg = pinnedMessages[pinnedIndex % pinnedMessages.length];
+                      if (msg) {
+                        const el = document.getElementById(`msg-${msg._id}`);
+                        el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                      }
+                    }}
+                  >
+                    {pinnedMessages[pinnedIndex % pinnedMessages.length]?.content || "Pinned attachment"}
+                  </Text>
+                </Box>
+              </HStack>
+
+              <HStack spacing={1}>
+                {pinnedMessages.length > 1 && (
+                  <IconButton
+                    size="xs"
+                    variant="ghost"
+                    icon={<i className="fa-solid fa-chevron-right" style={{ fontSize: "9px" }}></i>}
+                    onClick={() => setPinnedIndex((prev) => (prev + 1) % pinnedMessages.length)}
+                    aria-label="Next Pinned"
+                  />
+                )}
+                <IconButton
+                  size="xs"
+                  variant="ghost"
+                  icon={<CloseIcon boxSize="7px" />}
+                  onClick={() => handlePinMessage(pinnedMessages[pinnedIndex % pinnedMessages.length]?._id)}
+                  title="Unpin"
+                  aria-label="Unpin"
+                />
+              </HStack>
+            </Box>
+          )}
 
           {/* In-Chat Message Search Bar */}
           {showSearch && (
@@ -776,6 +1080,8 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
 
           {/* Messages Feed Area */}
           <Box
+            ref={messagesContainerRef}
+            onScroll={handleScroll}
             display="flex"
             flexDir="column"
             justifyContent="flex-end"
@@ -805,8 +1111,29 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                   messages={filteredMessages}
                   handleReaction={handleReaction}
                   handleDeleteMessage={handleDeleteMessage}
+                  handleReplyMessage={handleReplyMessage}
+                  handleEditMessage={handleEditMessage}
+                  handlePinMessage={handlePinMessage}
                 />
+                <div ref={messagesEndRef} />
               </div>
+            )}
+
+            {/* Scroll-To-Bottom Floating Button */}
+            {showScrollBottom && (
+              <IconButton
+                position="absolute"
+                bottom="75px"
+                right="20px"
+                size="sm"
+                borderRadius="full"
+                colorScheme="blue"
+                boxShadow="lg"
+                icon={<i className="fa-solid fa-arrow-down"></i>}
+                onClick={scrollToBottom}
+                aria-label="Scroll to bottom"
+                zIndex={10}
+              />
             )}
 
             {/* Live Typing Animation */}
@@ -817,6 +1144,71 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                   width={55}
                   height={25}
                   style={{ marginLeft: 0 }}
+                />
+              </Box>
+            )}
+
+            {/* Replying Preview Bar */}
+            {replyingMessage && (
+              <Box
+                mb={2}
+                p={2}
+                bg="blue.50"
+                borderLeft="3px solid"
+                borderColor="blue.500"
+                borderRadius="lg"
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+              >
+                <Box overflow="hidden">
+                  <Text fontSize="10px" fontWeight="700" color="blue.600">
+                    Replying to {replyingMessage.sender?.name || "User"}
+                  </Text>
+                  <Text fontSize="xs" color="gray.600" isTruncated>
+                    {replyingMessage.content || "Attachment"}
+                  </Text>
+                </Box>
+                <IconButton
+                  size="xs"
+                  variant="ghost"
+                  icon={<CloseIcon boxSize="8px" />}
+                  onClick={() => setReplyingMessage(null)}
+                  aria-label="Cancel Reply"
+                />
+              </Box>
+            )}
+
+            {/* Editing Preview Bar */}
+            {editingMessage && (
+              <Box
+                mb={2}
+                p={2}
+                bg="purple.50"
+                borderLeft="3px solid"
+                borderColor="purple.500"
+                borderRadius="lg"
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+              >
+                <Box overflow="hidden">
+                  <Text fontSize="10px" fontWeight="700" color="purple.600">
+                    Editing Message
+                  </Text>
+                  <Text fontSize="xs" color="gray.600" isTruncated>
+                    {editingMessage.content}
+                  </Text>
+                </Box>
+                <IconButton
+                  size="xs"
+                  variant="ghost"
+                  icon={<CloseIcon boxSize="8px" />}
+                  onClick={() => {
+                    setEditingMessage(null);
+                    setNewMessage("");
+                  }}
+                  aria-label="Cancel Edit"
                 />
               </Box>
             )}
@@ -999,7 +1391,13 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                   <Input
                     variant="filled"
                     bg="white"
-                    placeholder="Type an encrypted message..."
+                    placeholder={
+                      editingMessage
+                        ? "Edit your message..."
+                        : replyingMessage
+                        ? `Reply to ${replyingMessage.sender?.name || "User"}...`
+                        : "Type an encrypted message..."
+                    }
                     value={newMessage}
                     onChange={typingHandler}
                     borderRadius="full"
@@ -1009,8 +1407,8 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                     boxShadow="sm"
                     _focus={{
                       bg: "white",
-                      borderColor: "blue.400",
-                      boxShadow: "0 0 0 1px #3b82f6",
+                      borderColor: editingMessage ? "purple.400" : "blue.400",
+                      boxShadow: editingMessage ? "0 0 0 1px #a855f7" : "0 0 0 1px #3b82f6",
                     }}
                   />
 
@@ -1028,12 +1426,18 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                       />
                     </Tooltip>
 
-                    {/* Send Button */}
+                    {/* Send / Save Button */}
                     <IconButton
                       size="sm"
-                      colorScheme="blue"
+                      colorScheme={editingMessage ? "purple" : "blue"}
                       borderRadius="full"
-                      icon={<i className="fa-solid fa-paper-plane" style={{ color: "white" }}></i>}
+                      icon={
+                        editingMessage ? (
+                          <i className="fa-solid fa-check" style={{ color: "white" }}></i>
+                        ) : (
+                          <i className="fa-solid fa-paper-plane" style={{ color: "white" }}></i>
+                        )
+                      }
                       onClick={sendMessage}
                       aria-label="Send Message"
                       isDisabled={!newMessage.trim() && !attachedFile}
@@ -1043,6 +1447,31 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
               </FormControl>
             )}
           </Box>
+
+          {/* Clear Chat Confirmation Modal */}
+          <Modal isOpen={isClearChatOpen} onClose={onClearChatClose} isCentered size="sm">
+            <ModalOverlay backdropFilter="blur(4px)" bg="blackAlpha.600" />
+            <ModalContent borderRadius="2xl" mx={4} overflow="hidden">
+              <ModalHeader fontSize="lg" fontWeight="700" pt={5} pb={2} textAlign="center">
+                <i
+                  className="fa-solid fa-broom"
+                  style={{ color: "#ef4444", fontSize: "28px", display: "block", marginBottom: "8px" }}
+                ></i>
+                Clear Conversation History?
+              </ModalHeader>
+              <ModalBody textAlign="center" color="gray.600" fontSize="sm" py={2}>
+                This will delete messages in this chat. This action cannot be undone.
+              </ModalBody>
+              <ModalFooter display="flex" justifyContent="center" gap={3} pt={4} pb={5}>
+                <Button variant="ghost" onClick={onClearChatClose} borderRadius="lg" px={5}>
+                  Cancel
+                </Button>
+                <Button colorScheme="red" onClick={handleClearChat} borderRadius="lg" px={5}>
+                  Clear History
+                </Button>
+              </ModalFooter>
+            </ModalContent>
+          </Modal>
         </>
       ) : (
         <Box

@@ -1,122 +1,154 @@
-import { FormControl, FormLabel, VStack,Input ,InputGroup,InputRightElement,Button, useToast} from '@chakra-ui/react'
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import axios from 'axios'
+import React, { useState } from "react";
+import {
+  FormControl,
+  FormLabel,
+  VStack,
+  Input,
+  InputGroup,
+  InputRightElement,
+  Button,
+  useToast,
+  Divider,
+} from "@chakra-ui/react";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
 const Login = () => {
-
-
   const toast = useToast();
-  const navigate=useNavigate()
+  const navigate = useNavigate();
 
-    const [email, setEmail] = useState('')
-    const [password, setPassword] = useState('')
-  const [show, setShow] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-
-    
   const handleClick = () => setShow(!show);
-  
-    const submitHandler = async() =>  {
-      setLoading(true)
-      if (!email || !password) {
-          toast({
-            title: "Fill the Required Fields",
-            status: "warning",
-            duration: 3000,
-            isClosable: true,
-            position: "bottom",
-          });
-        setLoading(false)
-        return
-      }
-      try {
-        const config = {
-          headers: {
-            "Content-type":"application/json",
-          },
-        }
 
-        const { data } = await axios.post('/api/user/login',
-          { email, password }, config)
-        
-          toast({
-            title: "Login SuccessFull",
-            status: "success",
-            duration: 3000,
-            isClosable: true,
-            position: "bottom",
-          });
-        
-        
-        localStorage.setItem('userInfo', JSON.stringify(data))
-        setLoading(false);
-        navigate('/chats')
-      } catch (error) {
-        
-          toast({
-            title: "Error Ocurred",
-            description:error.response.data.message,
-            status: "error",
-            duration: 3000,
-            isClosable: true,
-            position: "bottom",
-          });
-      }
-    
+  const submitHandler = async () => {
+    setLoading(true);
+    if (!email || !password) {
+      toast({
+        title: "Please enter both Email and Password",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+        position: "bottom",
+      });
+      setLoading(false);
+      return;
     }
-    
-    
+    try {
+      const config = {
+        headers: {
+          "Content-type": "application/json",
+        },
+      };
+
+      const { data } = await axios.post(
+        "/api/user/login",
+        { email: email.trim().toLowerCase(), password },
+        config
+      );
+
+      toast({
+        title: "Welcome back!",
+        status: "success",
+        duration: 2500,
+        isClosable: true,
+        position: "bottom",
+      });
+
+      localStorage.setItem("userInfo", JSON.stringify(data));
+      setLoading(false);
+      navigate("/chats");
+    } catch (error) {
+      setLoading(false);
+      toast({
+        title: "Login Failed",
+        description:
+          error.response?.data?.message ||
+          error.message ||
+          "Invalid email or password",
+        status: "error",
+        duration: 4000,
+        isClosable: true,
+        position: "bottom",
+      });
+    }
+  };
 
   return (
-    <VStack>
+    <VStack spacing={4}>
       <FormControl isRequired>
-        <FormLabel>Email Address</FormLabel>
+        <FormLabel fontSize="sm" fontWeight="600">
+          Email Address
+        </FormLabel>
         <Input
-          placeholder="Enter Your Email"
+          placeholder="your.email@example.com"
           onChange={(e) => setEmail(e.target.value)}
           value={email}
+          borderRadius="xl"
+          focusBorderColor="purple.400"
         />
       </FormControl>
 
-      <FormControl  isRequired>
-        <FormLabel>Password</FormLabel>
+      <FormControl isRequired>
+        <FormLabel fontSize="sm" fontWeight="600">
+          Password
+        </FormLabel>
         <InputGroup>
           <Input
             type={show ? "text" : "password"}
-            placeholder="Enter Password"
-                      onChange={(e) => setPassword(e.target.value)}
-                      value={password}
+            placeholder="Enter password"
+            onChange={(e) => setPassword(e.target.value)}
+            value={password}
+            borderRadius="xl"
+            focusBorderColor="purple.400"
+            onKeyDown={(e) => e.key === "Enter" && submitHandler()}
           />
-          <InputRightElement>
-            <Button h="1.75rem" size="sm" onClick={handleClick}>
+          <InputRightElement width="4.5rem">
+            <Button
+              h="1.75rem"
+              size="xs"
+              onClick={handleClick}
+              borderRadius="md"
+              variant="ghost"
+            >
               {show ? "Hide" : "Show"}
             </Button>
           </InputRightElement>
         </InputGroup>
-          </FormControl>
-          
-          <Button colorScheme='blue' width='100%' color='white' style={{ marginTop: 15 }}
+      </FormControl>
+
+      <Button
+        colorScheme="purple"
+        width="100%"
         onClick={submitHandler}
         isLoading={loading}
+        borderRadius="xl"
+        py={5}
+        boxShadow="0 4px 14px rgba(99, 102, 241, 0.4)"
       >
-              
-              Login
-          </Button>
+        Sign In
+      </Button>
 
-          <Button variant='solid'
-              colorScheme='red'
-              width='100%'
-              onClick={() => {
-                  setEmail('guest@example.com')
-                  setPassword('123456')
-              }}>
-              Guest User
-          </Button>
+      <Divider />
 
+      <Button
+        variant="outline"
+        colorScheme="red"
+        width="100%"
+        borderRadius="xl"
+        size="sm"
+        onClick={() => {
+          setEmail("guest@example.com");
+          setPassword("123456");
+        }}
+      >
+        ⚡ Quick Guest Credentials
+      </Button>
     </VStack>
   );
-}
+};
 
-export default Login
+export default Login;

@@ -1,22 +1,230 @@
-@import url("https://fonts.googleapis.com/css2?family=Work+Sans:wght@300&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap");
+
+:root {
+  --primary-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+  --secondary-gradient: linear-gradient(135deg, #3b82f6 0%, #2dd4bf 100%);
+  --bubble-sender: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  --bubble-receiver: #ffffff;
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.4);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Outfit", "Work Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #0f172a;
+}
 
 .App {
   min-height: 100vh;
   display: flex;
-  background-image: url("./images/bg.jpg");
-  background-position: center;
-  /* background-size: cover; */
+  background: radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.18) 0%, transparent 40%),
+              radial-gradient(circle at 90% 80%, rgba(236, 72, 153, 0.15) 0%, transparent 40%),
+              radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.12) 0%, transparent 50%),
+              #0f172a;
+  background-attachment: fixed;
+  color: #1e293b;
 }
 
+/* Custom modern scrollbar */
 ::-webkit-scrollbar {
-  width: 0px;
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(136, 136, 136, 0.281);
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 9999px;
 }
 
-/* Handle on hover */
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: rgba(100, 116, 139, 0.7);
+}
+
+/* Glowing Online Status Indicator */
+.online-dot {
+  width: 10px;
+  height: 10px;
+  background-color: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px white, 0 0 8px #10b981;
+  display: inline-block;
+  animation: pulse-online 2s infinite ease-in-out;
+}
+
+.offline-dot {
+  width: 9px;
+  height: 9px;
+  background-color: #94a3b8;
+  border-radius: 50%;
+  border: 2px solid white;
+  display: inline-block;
+}
+
+@keyframes pulse-online {
+  0% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+/* Message Bubble Action Hover Menu */
+.message-bubble-wrapper {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  margin-bottom: 6px;
+  transition: all 0.2s ease;
+}
+
+.message-bubble-wrapper:hover .message-actions {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.message-actions {
+  position: absolute;
+  top: -24px;
+  opacity: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  padding: 2px 6px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+  transform: translateY(4px);
+  z-index: 10;
+}
+
+.message-actions-sender {
+  right: 8px;
+}
+
+.message-actions-receiver {
+  left: 36px;
+}
+
+.action-btn {
+  background: none;
+  border: none;
+  color: #cbd5e1;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 6px;
+  font-size: 13px;
+  transition: all 0.15s ease;
+}
+
+.action-btn:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.15);
+}
+
+/* Reaction Badges on messages */
+.reactions-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.reaction-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  border-radius: 12px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.15s ease;
+}
+
+.reaction-badge:hover {
+  transform: scale(1.08);
+  background: #f1f5f9;
+}
+
+.reaction-badge.user-reacted {
+  background: #ede9fe;
+  border-color: #c4b5fd;
+  color: #6d28d9;
+}
+
+/* Notification badge */
+.notification-badge {
+  position: relative;
+  display: inline-block;
+}
+
+.badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  background: #ef4444;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  box-shadow: 0 0 0 2px white;
+}
+
+/* Glassmorphism utility */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.06), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+}
+
+/* Quick Emoji Picker Strip */
+.emoji-picker-strip {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px;
+  background: rgba(248, 250, 252, 0.95);
+  border-top: 1px solid #e2e8f0;
+  overflow-x: auto;
+}
+
+.emoji-strip-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 8px;
+  transition: transform 0.15s ease;
+}
+
+.emoji-strip-btn:hover {
+  transform: scale(1.25);
+  background: rgba(226, 232, 240, 0.6);
 }

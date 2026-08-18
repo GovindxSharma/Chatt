@@ -52,6 +52,16 @@ const getEndpoint = () => {
 const ENDPOINT = getEndpoint();
 let socket, selectedChatCompare;
 
+// Convert File/Blob to Base64 Data URL
+const fileToDataUrl = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
+
 const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -73,6 +83,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const timerIntervalRef = useRef(null);
+  const recordingStreamRef = useRef(null);
 
   const toast = useToast();
 
@@ -121,7 +132,6 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
         config
       );
 
-      // Decrypt all messages with E2EE
       const decryptedData = await decryptMessagesList(data, selectedChat._id);
       setMessages(decryptedData);
       setLoading(false);
@@ -142,8 +152,8 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     }
   };
 
-  // Upload file or image
-  const handleFileUpload = (file, explicitType = "") => {
+  // Upload file or image with Cloudinary + Data URL fallback
+  const handleFileUpload = async (file, explicitType = "") => {
     if (!file) return;
     setUploadingFile(true);
 
@@ -151,71 +161,149 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     const isAudio = file.type.startsWith("audio/");
     const determinedType = explicitType || (isImage ? "image" : isAudio ? "audio" : "file");
 
-    const data = new FormData();
-    data.append("file", file);
-    data.append("upload_preset", "chat-app");
-    data.append("cloud_name", "ddnwjdqbf");
+    try {
+      let finalUrl = "";
 
-    const resourceType = isImage ? "image" : isAudio ? "video" : "auto";
+      if (isImage) {
+        try {
+          const data = new FormData();
+          data.append("file", file);
+          data.append("upload_preset", "chat-app");
+          data.append("cloud_name", "ddnwjdqbf");
 
-    fetch(`https://api.cloudinary.com/v1_1/ddnwjdqbf/${resourceType}/upload`, {
-      method: "post",
-      body: data,
-    })
-      .then((res) => res.json())
-      .then((resData) => {
-        if (resData.url || resData.secure_url) {
-          const finalUrl = (resData.secure_url || resData.url).toString();
-          setAttachedFile({
-            url: finalUrl,
-            type: determinedType,
-            name: file.name || "Attachment",
+          const res = await fetch("https://api.cloudinary.com/v1_1/ddnwjdqbf/image/upload", {
+            method: "post",
+            body: data,
           });
-          toast({
-            title: "File Attached",
-            status: "success",
-            duration: 2000,
-            isClosable: true,
-          });
+          const resData = await res.json();
+          if (resData.url || resData.secure_url) {
+            finalUrl = (resData.secure_url || resData.url).toString();
+          }
+        } catch (e) {
+          // Cloudinary fallback to data URL
         }
-        setUploadingFile(false);
-      })
-      .catch(() => {
-        setUploadingFile(false);
-        toast({
-          title: "Upload Failed",
-          description: "Could not upload file",
-          status: "warning",
-          duration: 3000,
-          isClosable: true,
-        });
+      }
+
+      if (!finalUrl) {
+        finalUrl = await fileToDataUrl(file);
+      }
+
+      setAttachedFile({
+        url: finalUrl,
+        type: determinedType,
+        name: file.name || "Attachment",
       });
+
+      toast({
+        title: `${determinedType === "audio" ? "Audio" : "File"} Attached`,
+        status: "success",
+        duration: 2000,
+        isClosable: true,
+      });
+      setUploadingFile(false);
+    } catch (err) {
+      setUploadingFile(false);
+      toast({
+        title: "Attachment Failed",
+        description: "Could not read file",
+        status: "error",
+        duration: 3000,
+        isClosable: true,
+      });
+    }
   };
 
-  // Voice Note Recording
+  // Send Direct Voice Note
+  const sendDirectVoiceNote = async (audioBlob) => {
+    if (!selectedChat) return;
+    try {
+      setUploadingFile(true);
+      const audioDataUrl = await fileToDataUrl(audioBlob);
+
+      const config = {
+        headers: {
+          "Content-type": "application/json",
+          Authorization: `Bearer ${user.token}`,
+        },
+      };
+
+      const encryptedContent = await encryptText("Voice note", selectedChat._id);
+      const encryptedFileName = await encryptText("voice-note.webm", selectedChat._id);
+
+      const payload = {
+        content: encryptedContent,
+        chatId: selectedChat._id,
+        fileUrl: audioDataUrl,
+        fileType: "audio",
+        fileName: encryptedFileName,
+      };
+
+      const { data } = await axios.post("/api/message", payload, config);
+
+      if (socket) {
+        socket.emit("new message", data);
+      }
+      playSendSound();
+
+      const decryptedMsg = await decryptMessageObject(data, selectedChat._id);
+      setMessages((prev) => [...prev, decryptedMsg]);
+      setFetchAgain(!fetchAgain);
+      setUploadingFile(false);
+
+      toast({
+        title: "Voice Note Sent!",
+        status: "success",
+        duration: 2000,
+        isClosable: true,
+      });
+    } catch (error) {
+      setUploadingFile(false);
+      toast({
+        title: "Failed to Send Voice Note",
+        description: error.response?.data?.message || error.message,
+        status: "error",
+        duration: 4000,
+        isClosable: true,
+        position: "bottom",
+      });
+    }
+  };
+
+  // Start Live Audio Recording
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordingStreamRef.current = stream;
       audioChunksRef.current = [];
-      const mediaRecorder = new MediaRecorder(stream);
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : MediaRecorder.isTypeSupported("audio/mp4")
+        ? "audio/mp4"
+        : "";
+
+      const options = mimeType ? { mimeType } : undefined;
+      const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
 
       mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
+        if (e.data && e.data.size > 0) {
           audioChunksRef.current.push(e.data);
         }
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        const audioFile = new File([audioBlob], `voice-note-${Date.now()}.webm`, {
-          type: "audio/webm",
-        });
-        handleFileUpload(audioFile, "audio");
-        stream.getTracks().forEach((track) => track.stop());
+        const finalMime = mediaRecorder.mimeType || "audio/webm";
+        const audioBlob = new Blob(audioChunksRef.current, { type: finalMime });
+        if (audioChunksRef.current.length > 0) {
+          await sendDirectVoiceNote(audioBlob);
+        }
+        if (recordingStreamRef.current) {
+          recordingStreamRef.current.getTracks().forEach((track) => track.stop());
+        }
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(200); // chunk every 200ms
       setIsRecording(true);
       setRecordingDuration(0);
 
@@ -225,7 +313,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     } catch (err) {
       toast({
         title: "Microphone Access Denied",
-        description: "Please allow microphone access to record voice notes",
+        description: "Please allow microphone access in your browser to record voice notes",
         status: "error",
         duration: 3500,
         isClosable: true,
@@ -233,7 +321,8 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     }
   };
 
-  const stopRecording = () => {
+  // Stop and automatically send voice note
+  const stopAndSendRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
@@ -241,9 +330,12 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     }
   };
 
+  // Cancel voice recording without sending
   const cancelRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+      if (recordingStreamRef.current) {
+        recordingStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
       mediaRecorderRef.current = null;
       audioChunksRef.current = [];
       setIsRecording(false);
@@ -258,7 +350,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
-  // Send E2EE encrypted message
+  // Send standard E2EE message or attachment
   const sendMessage = async (event) => {
     if (
       (event?.key === "Enter" || event?.type === "click") &&
@@ -282,7 +374,6 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           },
         };
 
-        // Encrypt message content and filename with AES-256-GCM before sending
         const textToEncrypt = contentToSend || (fileToSend ? fileToSend.name : "");
         const encryptedContent = await encryptText(textToEncrypt, selectedChat._id);
         const encryptedFileName = fileToSend?.name
@@ -304,7 +395,6 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
         }
         playSendSound();
 
-        // Decrypt returned message for local state
         const decryptedMsg = await decryptMessageObject(data, selectedChat._id);
         setMessages((prev) => [...prev, decryptedMsg]);
         setFetchAgain(!fetchAgain);
@@ -441,7 +531,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     // eslint-disable-next-line
   }, [selectedChat]);
 
-  // Real-time socket listeners with E2EE decryption
+  // Real-time socket listeners
   useEffect(() => {
     const handleIncomingMessage = async (newMessageReceived) => {
       const decryptedMsg = await decryptMessageObject(
@@ -540,7 +630,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     <>
       {selectedChat ? (
         <>
-          {/* Top Bar Header with E2EE Badge */}
+          {/* Top Bar Header */}
           <Box
             w="100%"
             pb={3}
@@ -596,7 +686,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                       : selectedChat.chatName}
                   </Text>
                   <Tooltip
-                    label="Messages and attachments are End-to-End Encrypted (AES-256). No one outside of this chat can read them."
+                    label="Messages and audio notes are End-to-End Encrypted (AES-256). No one outside of this chat can listen or read them."
                     hasArrow
                     placement="bottom"
                   >
@@ -814,7 +904,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                     animation="pulse-online 1s infinite"
                   />
                   <Text fontSize="sm" fontWeight="700" color="red.500">
-                    Recording... {formatDuration(recordingDuration)}
+                    Recording: {formatDuration(recordingDuration)}
                   </Text>
                 </HStack>
                 <HStack spacing={2}>
@@ -827,14 +917,16 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                   >
                     Cancel
                   </Button>
-                  <IconButton
+                  <Button
                     size="sm"
                     colorScheme="red"
                     borderRadius="full"
-                    icon={<i className="fa-solid fa-stop"></i>}
-                    onClick={stopRecording}
-                    aria-label="Stop & Attach Voice Note"
-                  />
+                    leftIcon={<i className="fa-solid fa-paper-plane"></i>}
+                    onClick={stopAndSendRecording}
+                    isLoading={uploadingFile}
+                  >
+                    Send Voice Note
+                  </Button>
                 </HStack>
               </Box>
             ) : (
@@ -924,7 +1016,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
 
                   <InputRightElement width="84px" pr={2} display="flex" gap={1}>
                     {/* Voice Note Recording Button */}
-                    <Tooltip label="Record Voice Note" hasArrow>
+                    <Tooltip label="Hold/Click to record voice note" hasArrow>
                       <IconButton
                         size="sm"
                         variant="ghost"

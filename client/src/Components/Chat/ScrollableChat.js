@@ -196,9 +196,21 @@ const ScrollableChat = ({ messages, handleReaction, handleDeleteMessage }) => {
               });
             }
 
-            const isAudio = m.fileType === "audio" || m.fileUrl?.includes("audio") || m.fileUrl?.endsWith(".webm") || m.fileUrl?.endsWith(".mp3") || m.fileUrl?.endsWith(".wav");
-            const isImage = (m.fileType === "image" || (m.fileUrl && !isAudio && !m.fileType?.includes("file"))) && !m.isDeleted;
-            const isFile = m.fileType === "file" && !m.isDeleted;
+            const isAudio =
+              m.fileType === "audio" ||
+              m.fileUrl?.startsWith("data:audio") ||
+              m.fileUrl?.includes("audio") ||
+              m.fileUrl?.endsWith(".webm") ||
+              m.fileUrl?.endsWith(".mp3") ||
+              m.fileUrl?.endsWith(".wav") ||
+              m.fileUrl?.endsWith(".ogg") ||
+              m.fileUrl?.endsWith(".m4a");
+            const isImage =
+              (m.fileType === "image" ||
+                m.fileUrl?.startsWith("data:image") ||
+                (m.fileUrl && !isAudio && !m.fileType?.includes("file"))) &&
+              !m.isDeleted;
+            const isFile = m.fileType === "file" && !m.isDeleted && !isAudio && !isImage;
 
             return (
               <div

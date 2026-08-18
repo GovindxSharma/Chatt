@@ -62,7 +62,6 @@ const GroupChatModal = ({ children }) => {
           Authorization: `Bearer ${user.token}`,
         },
       };
-      // Fix: search with query parameter directly instead of relying on stale state
       const { data } = await axios.get(
         `/api/user?search=${encodeURIComponent(query.trim())}`,
         config
@@ -132,9 +131,9 @@ const GroupChatModal = ({ children }) => {
       setGroupChatName("");
       setSearchResult([]);
       toast({
-        title: "🎉 New Group Chat Created!",
+        title: "New Group Chat Created!",
         status: "success",
-        duration: 4000,
+        duration: 3000,
         isClosable: true,
         position: "bottom",
       });
@@ -157,17 +156,21 @@ const GroupChatModal = ({ children }) => {
 
       <Modal isOpen={isOpen} onClose={onClose} isCentered size="lg">
         <ModalOverlay backdropFilter="blur(6px)" bg="blackAlpha.600" />
-        <ModalContent borderRadius="2xl" overflow="hidden" boxShadow="2xl">
+        <ModalContent borderRadius="2xl" overflow="hidden" boxShadow="2xl" mx={4}>
           <ModalHeader
-            fontSize="22px"
+            fontSize="20px"
+            fontFamily="Work sans"
             fontWeight="700"
             display="flex"
             justifyContent="center"
-            bg="linear-gradient(135deg, #6366f1 0%, #a855f7 100%)"
+            alignItems="center"
+            gap={2}
+            bg="linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)"
             color="white"
             py={4}
           >
-            👥 Create New Group Chat
+            <i className="fa-solid fa-users"></i>
+            Create Group Chat
           </ModalHeader>
           <ModalCloseButton color="white" />
           <ModalBody display="flex" flexDir="column" p={6}>
@@ -176,7 +179,7 @@ const GroupChatModal = ({ children }) => {
                 Group Name
               </Text>
               <Input
-                placeholder="e.g. Design Team, Study Group, Project Chatt"
+                placeholder="Group Name"
                 value={groupChatName}
                 onChange={(e) => setGroupChatName(e.target.value)}
                 borderRadius="xl"
@@ -185,7 +188,7 @@ const GroupChatModal = ({ children }) => {
 
             <FormControl mb={3}>
               <Text fontSize="xs" fontWeight="700" color="gray.600" mb={1} textTransform="uppercase">
-                Add Members
+                Add Users
               </Text>
               <Input
                 placeholder="Search user by name or email..."
@@ -196,7 +199,7 @@ const GroupChatModal = ({ children }) => {
             </FormControl>
 
             {selectedUsers.length > 0 && (
-              <Box w="100%" display="flex" flexWrap="wrap" mb={3} p={2} bg="purple.50" borderRadius="xl">
+              <Box w="100%" display="flex" flexWrap="wrap" mb={3} p={2} bg="blue.50" borderRadius="xl">
                 {selectedUsers.map((u) => (
                   <UserBadgeItem
                     key={u._id}
@@ -207,13 +210,13 @@ const GroupChatModal = ({ children }) => {
               </Box>
             )}
 
-            <Box maxH="220px" overflowY="auto" mt={1}>
+            <Box maxH="200px" overflowY="auto" mt={1}>
               {loading ? (
                 <Box textAlign="center" py={4}>
-                  <Spinner size="md" color="purple.500" />
+                  <Spinner size="md" color="blue.500" />
                 </Box>
               ) : (
-                searchResult?.slice(0, 5).map((u) => (
+                searchResult?.slice(0, 4).map((u) => (
                   <UserListItem
                     key={u._id}
                     user={u}
@@ -228,12 +231,12 @@ const GroupChatModal = ({ children }) => {
               Cancel
             </Button>
             <Button
-              colorScheme="purple"
+              colorScheme="blue"
               onClick={handleSubmit}
               isLoading={submitting}
               borderRadius="lg"
             >
-              Create Group
+              Create Chat
             </Button>
           </ModalFooter>
         </ModalContent>

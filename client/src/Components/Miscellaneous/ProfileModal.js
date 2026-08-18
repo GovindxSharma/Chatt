@@ -25,8 +25,14 @@ import { ViewIcon, EditIcon, CheckIcon, CloseIcon } from "@chakra-ui/icons";
 import axios from "axios";
 import { ChatState } from "../../Context/ChatProvider";
 
-const ProfileModal = ({ user: profileUser, children }) => {
-  const { isOpen, onOpen, onClose } = useDisclosure();
+const ProfileModal = ({ user: profileUser, children, isOpen: externalIsOpen, onClose: externalOnClose }) => {
+  const internalDisclosure = useDisclosure();
+  
+  // Support both uncontrolled (with children or icon button) and controlled mode
+  const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalDisclosure.isOpen;
+  const onOpen = internalDisclosure.onOpen;
+  const onClose = externalOnClose !== undefined ? externalOnClose : internalDisclosure.onClose;
+
   const { user: currentUser, setUser: setCurrentUser, onlineUsers } = ChatState();
   const toast = useToast();
 
@@ -35,14 +41,14 @@ const ProfileModal = ({ user: profileUser, children }) => {
 
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(profileUser?.name || "");
-  const [bio, setBio] = useState(profileUser?.bio || "Hey there! I am using Chatt.");
+  const [bio, setBio] = useState(profileUser?.bio || "Hey there! I am using Chat-To-Talk.");
   const [status, setStatus] = useState(profileUser?.status || "Available");
   const [pic, setPic] = useState(profileUser?.pic || "");
   const [loading, setLoading] = useState(false);
 
   const handleOpen = () => {
     setName(profileUser?.name || "");
-    setBio(profileUser?.bio || "Hey there! I am using Chatt.");
+    setBio(profileUser?.bio || "Hey there! I am using Chat-To-Talk.");
     setStatus(profileUser?.status || "Available");
     setPic(profileUser?.pic || "");
     setIsEditing(false);
@@ -51,7 +57,7 @@ const ProfileModal = ({ user: profileUser, children }) => {
 
   const uploadImage = (file) => {
     if (!file) return;
-    if (file.type === "image/jpeg" || file.type === "image/png" || file.type === "image/webp") {
+    if (file.type.startsWith("image/")) {
       setLoading(true);
       const data = new FormData();
       data.append("file", file);
@@ -66,7 +72,7 @@ const ProfileModal = ({ user: profileUser, children }) => {
           if (data.url) {
             setPic(data.url.toString());
             toast({
-              title: "Image Uploaded",
+              title: "Picture Uploaded",
               status: "success",
               duration: 2000,
               isClosable: true,
@@ -74,11 +80,11 @@ const ProfileModal = ({ user: profileUser, children }) => {
           }
           setLoading(false);
         })
-        .catch((err) => {
+        .catch(() => {
           setLoading(false);
           toast({
             title: "Upload Failed",
-            description: "Could not upload image to Cloudinary",
+            description: "Could not upload image",
             status: "warning",
             duration: 3000,
             isClosable: true,
@@ -86,7 +92,7 @@ const ProfileModal = ({ user: profileUser, children }) => {
         });
     } else {
       toast({
-        title: "Please Select a JPG/PNG Image",
+        title: "Please Select an Image File",
         status: "warning",
         duration: 3000,
         isClosable: true,
@@ -120,7 +126,6 @@ const ProfileModal = ({ user: profileUser, children }) => {
         config
       );
 
-      // Preserve auth token in local storage
       const updatedUser = { ...data, token: currentUser.token };
       localStorage.setItem("userInfo", JSON.stringify(updatedUser));
       setCurrentUser(updatedUser);
@@ -149,18 +154,21 @@ const ProfileModal = ({ user: profileUser, children }) => {
   return (
     <>
       {children ? (
-        <span onClick={handleOpen}>{children}</span>
-      ) : (
+        <span onClick={handleOpen} style={{ cursor: "pointer", width: "100%", display: "block" }}>
+          {children}
+        </span>
+      ) : externalIsOpen === undefined ? (
         <IconButton
           display={{ base: "flex" }}
           icon={<ViewIcon />}
           onClick={handleOpen}
           aria-label="View Profile"
           variant="ghost"
-          colorScheme="purple"
+          colorScheme="blue"
           borderRadius="full"
         />
-      )}
+      ) : null}
+
       <Modal size="md" isOpen={isOpen} onClose={onClose} isCentered>
         <ModalOverlay backdropFilter="blur(8px)" bg="blackAlpha.600" />
         <ModalContent
@@ -168,10 +176,11 @@ const ProfileModal = ({ user: profileUser, children }) => {
           overflow="hidden"
           boxShadow="2xl"
           borderWidth="1px"
-          borderColor="whiteAlpha.300"
+          borderColor="gray.100"
+          mx={4}
         >
           <Box
-            bg="linear-gradient(135deg, #6366f1 0%, #a855f7 100%)"
+            bg="linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)"
             p={6}
             textAlign="center"
             color="white"
@@ -197,7 +206,7 @@ const ProfileModal = ({ user: profileUser, children }) => {
                 className={isOnline ? "online-dot" : "offline-dot"}
               />
             </Box>
-            <ModalHeader fontSize="24px" fontWeight="700" p={0} mt={3} color="white">
+            <ModalHeader fontSize="22px" fontWeight="700" p={0} mt={3} color="white">
               {isEditing ? "Edit Profile" : profileUser?.name}
             </ModalHeader>
             <HStack justify="center" spacing={2} mt={1}>
@@ -208,10 +217,10 @@ const ProfileModal = ({ user: profileUser, children }) => {
                 borderRadius="full"
                 px={2.5}
               >
-                {isOnline ? "Active Now" : "Offline"}
+                {isOnline ? "Active" : "Offline"}
               </Badge>
               {profileUser?.status && !isEditing && (
-                <Badge colorScheme="purple" variant="solid" fontSize="11px" borderRadius="full" px={2.5}>
+                <Badge colorScheme="blue" variant="solid" fontSize="11px" borderRadius="full" px={2.5}>
                   {profileUser.status}
                 </Badge>
               )}
@@ -235,7 +244,7 @@ const ProfileModal = ({ user: profileUser, children }) => {
                   <Input
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
-                    placeholder="What's on your mind?"
+                    placeholder="Status / Bio..."
                     borderRadius="lg"
                   />
                 </FormControl>
@@ -244,12 +253,12 @@ const ProfileModal = ({ user: profileUser, children }) => {
                   <Input
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
-                    placeholder="e.g. Available, In a meeting, Busy"
+                    placeholder="Available, Busy, Away..."
                     borderRadius="lg"
                   />
                 </FormControl>
                 <FormControl id="pic">
-                  <FormLabel fontSize="sm" fontWeight="600">Update Profile Picture</FormLabel>
+                  <FormLabel fontSize="sm" fontWeight="600">Change Picture</FormLabel>
                   <Input
                     type="file"
                     accept="image/*"
@@ -261,20 +270,20 @@ const ProfileModal = ({ user: profileUser, children }) => {
               </VStack>
             ) : (
               <VStack spacing={3} align="stretch">
-                <Box p={3} bg="gray.50" borderRadius="xl">
+                <Box p={3.5} bg="gray.50" borderRadius="xl">
                   <Text fontSize="xs" fontWeight="700" color="gray.500" textTransform="uppercase">
-                    Email
+                    Email Address
                   </Text>
-                  <Text fontSize="md" fontWeight="500" color="gray.800">
+                  <Text fontSize="md" fontWeight="600" color="gray.800">
                     {profileUser?.email}
                   </Text>
                 </Box>
-                <Box p={3} bg="gray.50" borderRadius="xl">
+                <Box p={3.5} bg="gray.50" borderRadius="xl">
                   <Text fontSize="xs" fontWeight="700" color="gray.500" textTransform="uppercase">
                     About / Bio
                   </Text>
                   <Text fontSize="sm" color="gray.700">
-                    {profileUser?.bio || "Hey there! I am using Chatt."}
+                    {profileUser?.bio || "Hey there! I am using Chat-To-Talk."}
                   </Text>
                 </Box>
               </VStack>
@@ -295,18 +304,18 @@ const ProfileModal = ({ user: profileUser, children }) => {
                       Cancel
                     </Button>
                     <Button
-                      colorScheme="purple"
+                      colorScheme="blue"
                       onClick={handleSaveProfile}
                       isLoading={loading}
                       leftIcon={<CheckIcon boxSize="12px" />}
                       borderRadius="lg"
                     >
-                      Save Changes
+                      Save
                     </Button>
                   </HStack>
                 ) : (
                   <Button
-                    colorScheme="purple"
+                    colorScheme="blue"
                     variant="outline"
                     onClick={() => setIsEditing(true)}
                     leftIcon={<EditIcon />}

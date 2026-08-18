@@ -28,7 +28,7 @@ const Login = () => {
     setLoading(true);
     if (!email || !password) {
       toast({
-        title: "Please enter both Email and Password",
+        title: "Fill the Required Fields",
         status: "warning",
         duration: 3000,
         isClosable: true,
@@ -51,7 +51,7 @@ const Login = () => {
       );
 
       toast({
-        title: "Welcome back!",
+        title: "Login Successful",
         status: "success",
         duration: 2500,
         isClosable: true,
@@ -64,11 +64,11 @@ const Login = () => {
     } catch (error) {
       setLoading(false);
       toast({
-        title: "Login Failed",
+        title: "Error Occurred",
         description:
           error.response?.data?.message ||
           error.message ||
-          "Invalid email or password",
+          "Invalid Email or Password",
         status: "error",
         duration: 4000,
         isClosable: true,
@@ -78,17 +78,16 @@ const Login = () => {
   };
 
   return (
-    <VStack spacing={4}>
+    <VStack spacing={3.5}>
       <FormControl isRequired>
         <FormLabel fontSize="sm" fontWeight="600">
           Email Address
         </FormLabel>
         <Input
-          placeholder="your.email@example.com"
+          placeholder="Enter Your Email"
           onChange={(e) => setEmail(e.target.value)}
           value={email}
           borderRadius="xl"
-          focusBorderColor="purple.400"
         />
       </FormControl>
 
@@ -99,11 +98,10 @@ const Login = () => {
         <InputGroup>
           <Input
             type={show ? "text" : "password"}
-            placeholder="Enter password"
+            placeholder="Enter Password"
             onChange={(e) => setPassword(e.target.value)}
             value={password}
             borderRadius="xl"
-            focusBorderColor="purple.400"
             onKeyDown={(e) => e.key === "Enter" && submitHandler()}
           />
           <InputRightElement width="4.5rem">
@@ -121,21 +119,21 @@ const Login = () => {
       </FormControl>
 
       <Button
-        colorScheme="purple"
+        colorScheme="blue"
         width="100%"
         onClick={submitHandler}
         isLoading={loading}
         borderRadius="xl"
         py={5}
-        boxShadow="0 4px 14px rgba(99, 102, 241, 0.4)"
+        mt={2}
       >
-        Sign In
+        Login
       </Button>
 
-      <Divider />
+      <Divider my={1} />
 
       <Button
-        variant="outline"
+        variant="solid"
         colorScheme="red"
         width="100%"
         borderRadius="xl"
@@ -145,7 +143,7 @@ const Login = () => {
           setPassword("123456");
         }}
       >
-        ⚡ Quick Guest Credentials
+        Guest User
       </Button>
     </VStack>
   );

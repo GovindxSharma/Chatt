@@ -16,6 +16,14 @@ const messageModel = mongoose.Schema(
       type: String,
       default: "",
     },
+    fileType: {
+      type: String, // 'image' | 'audio' | 'file' | 'video'
+      default: "",
+    },
+    fileName: {
+      type: String,
+      default: "",
+    },
     chat: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Chat",

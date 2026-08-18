@@ -12,6 +12,9 @@ import {
   ModalCloseButton,
   useDisclosure,
   useToast,
+  HStack,
+  IconButton,
+  Link,
 } from "@chakra-ui/react";
 import ScrollableFeed from "react-scrollable-feed";
 import {
@@ -22,6 +25,130 @@ import {
   formatMessageTime,
 } from "../../config/ChatLogics.js";
 import { ChatState } from "../../Context/ChatProvider.js";
+
+// Custom Audio Player for Voice Messages
+const AudioMessagePlayer = ({ audioUrl, isSender }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = React.useRef(null);
+
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+  };
+
+  return (
+    <Box
+      display="flex"
+      alignItems="center"
+      gap={2}
+      bg={isSender ? "rgba(255, 255, 255, 0.2)" : "gray.100"}
+      p={2}
+      borderRadius="xl"
+      minW="180px"
+      maxW="260px"
+      my={1}
+    >
+      <audio
+        ref={audioRef}
+        src={audioUrl}
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onEnded={() => setIsPlaying(false)}
+        preload="metadata"
+      />
+      <IconButton
+        size="sm"
+        borderRadius="full"
+        colorScheme={isSender ? "whiteAlpha" : "blue"}
+        variant={isSender ? "solid" : "solid"}
+        onClick={togglePlay}
+        aria-label={isPlaying ? "Pause audio" : "Play audio"}
+        icon={
+          <i
+            className={isPlaying ? "fa-solid fa-pause" : "fa-solid fa-play"}
+            style={{ color: isSender ? "#1e293b" : "white" }}
+          ></i>
+        }
+      />
+      <Box flex="1">
+        <HStack spacing={1}>
+          <i className="fa-solid fa-waveform" style={{ fontSize: "12px", opacity: 0.8 }}></i>
+          <Text fontSize="xs" fontWeight="600">
+            Voice Note
+          </Text>
+        </HStack>
+        <Text fontSize="10px" opacity={0.75}>
+          {isPlaying ? "Playing..." : "Tap to listen"}
+        </Text>
+      </Box>
+    </Box>
+  );
+};
+
+// Document / File Message Card
+const FileMessageCard = ({ fileUrl, fileName, isSender }) => {
+  const getFileIcon = (name) => {
+    if (!name) return "fa-file";
+    const ext = name.split(".").pop()?.toLowerCase();
+    if (["pdf"].includes(ext)) return "fa-file-pdf";
+    if (["doc", "docx"].includes(ext)) return "fa-file-word";
+    if (["xls", "xlsx"].includes(ext)) return "fa-file-excel";
+    if (["zip", "rar", "7z"].includes(ext)) return "fa-file-zipper";
+    if (["mp3", "wav", "ogg"].includes(ext)) return "fa-file-audio";
+    if (["mp4", "mov", "avi"].includes(ext)) return "fa-file-video";
+    return "fa-file";
+  };
+
+  return (
+    <Link
+      href={fileUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      _hover={{ textDecoration: "none" }}
+      display="block"
+      my={1}
+    >
+      <Box
+        display="flex"
+        alignItems="center"
+        gap={3}
+        bg={isSender ? "rgba(255, 255, 255, 0.2)" : "gray.100"}
+        p={2.5}
+        borderRadius="xl"
+        borderWidth="1px"
+        borderColor={isSender ? "whiteAlpha.300" : "gray.200"}
+        minW="180px"
+        maxW="260px"
+        transition="all 0.2s"
+        _hover={{ transform: "translateY(-1px)", shadow: "sm" }}
+      >
+        <Box
+          p={2}
+          bg={isSender ? "rgba(255, 255, 255, 0.3)" : "blue.100"}
+          borderRadius="lg"
+          color={isSender ? "white" : "blue.600"}
+        >
+          <i className={`fa-solid ${getFileIcon(fileName)}`} style={{ fontSize: "18px" }}></i>
+        </Box>
+        <Box flex="1" overflow="hidden">
+          <Text fontSize="xs" fontWeight="600" isTruncated>
+            {fileName || "Attachment"}
+          </Text>
+          <HStack spacing={1}>
+            <i className="fa-solid fa-download" style={{ fontSize: "10px", opacity: 0.7 }}></i>
+            <Text fontSize="10px" opacity={0.8}>
+              Download file
+            </Text>
+          </HStack>
+        </Box>
+      </Box>
+    </Link>
+  );
+};
 
 const ScrollableChat = ({ messages, handleReaction, handleDeleteMessage }) => {
   const { user } = ChatState();
@@ -46,7 +173,13 @@ const ScrollableChat = ({ messages, handleReaction, handleDeleteMessage }) => {
     });
   };
 
-  const QUICK_EMOJIS = ["❤️", "👍", "😂", "🔥", "😮"];
+  const QUICK_ICONS = [
+    { key: "like", icon: "fa-thumbs-up", label: "Like" },
+    { key: "heart", icon: "fa-heart", label: "Heart" },
+    { key: "fire", icon: "fa-fire", label: "Fire" },
+    { key: "star", icon: "fa-star", label: "Star" },
+    { key: "smile", icon: "fa-face-smile", label: "Smile" },
+  ];
 
   return (
     <>
@@ -56,13 +189,16 @@ const ScrollableChat = ({ messages, handleReaction, handleDeleteMessage }) => {
             const isSender = m.sender?._id === user?._id;
             const hasReactions = m.reactions && m.reactions.length > 0;
 
-            // Group reactions by emoji
             const reactionCounts = {};
             if (hasReactions) {
               m.reactions.forEach((r) => {
                 reactionCounts[r.emoji] = (reactionCounts[r.emoji] || 0) + 1;
               });
             }
+
+            const isAudio = m.fileType === "audio" || m.fileUrl?.includes("audio") || m.fileUrl?.endsWith(".webm") || m.fileUrl?.endsWith(".mp3") || m.fileUrl?.endsWith(".wav");
+            const isImage = (m.fileType === "image" || (m.fileUrl && !isAudio && !m.fileType?.includes("file"))) && !m.isDeleted;
+            const isFile = m.fileType === "file" && !m.isDeleted;
 
             return (
               <div
@@ -72,7 +208,7 @@ const ScrollableChat = ({ messages, handleReaction, handleDeleteMessage }) => {
                   justifyContent: isSender ? "flex-end" : "flex-start",
                 }}
               >
-                {/* Avatar for receiver */}
+                {/* Receiver Avatar */}
                 {!isSender &&
                   (isSameSender(messages, m, i, user?._id) ||
                     isLastMessage(messages, i, user?._id)) && (
@@ -88,21 +224,21 @@ const ScrollableChat = ({ messages, handleReaction, handleDeleteMessage }) => {
                     </Tooltip>
                   )}
 
-                {/* Message Actions Menu on Hover */}
+                {/* Hover Action Bar with Vector Icons */}
                 {!m.isDeleted && (
                   <div
                     className={`message-actions ${
                       isSender ? "message-actions-sender" : "message-actions-receiver"
                     }`}
                   >
-                    {QUICK_EMOJIS.map((emoji) => (
+                    {QUICK_ICONS.map(({ key, icon, label }) => (
                       <button
-                        key={emoji}
+                        key={key}
                         className="action-btn"
-                        onClick={() => handleReaction && handleReaction(m._id, emoji)}
-                        title={`React ${emoji}`}
+                        onClick={() => handleReaction && handleReaction(m._id, key)}
+                        title={label}
                       >
-                        {emoji}
+                        <i className={`fa-solid ${icon}`}></i>
                       </button>
                     ))}
                     {m.content && (
@@ -111,7 +247,7 @@ const ScrollableChat = ({ messages, handleReaction, handleDeleteMessage }) => {
                         onClick={() => copyToClipboard(m.content)}
                         title="Copy text"
                       >
-                        📋
+                        <i className="fa-solid fa-copy"></i>
                       </button>
                     )}
                     {isSender && handleDeleteMessage && (
@@ -119,20 +255,20 @@ const ScrollableChat = ({ messages, handleReaction, handleDeleteMessage }) => {
                         className="action-btn"
                         onClick={() => handleDeleteMessage(m._id)}
                         title="Delete message"
-                        style={{ color: "#f87171" }}
+                        style={{ color: "#ef4444" }}
                       >
-                        🗑️
+                        <i className="fa-solid fa-trash"></i>
                       </button>
                     )}
                   </div>
                 )}
 
-                {/* Main Message Bubble */}
+                {/* Bubble Container */}
                 <div
                   style={{
-                    backgroundColor: isSender ? "#6366f1" : "#ffffff",
+                    backgroundColor: isSender ? "#3b82f6" : "#ffffff",
                     backgroundImage: isSender
-                      ? "linear-gradient(135deg, #6366f1 0%, #7c3aed 100%)"
+                      ? "linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)"
                       : "none",
                     color: isSender ? "#ffffff" : "#1e293b",
                     marginLeft: !isSender
@@ -143,28 +279,33 @@ const ScrollableChat = ({ messages, handleReaction, handleDeleteMessage }) => {
                       ? "18px 18px 4px 18px"
                       : "18px 18px 18px 4px",
                     padding: "8px 14px",
-                    maxWidth: "75%",
+                    maxWidth: "80%",
                     boxShadow: isSender
-                      ? "0 3px 12px rgba(99, 102, 241, 0.25)"
+                      ? "0 3px 10px rgba(59, 130, 246, 0.25)"
                       : "0 2px 8px rgba(0, 0, 0, 0.05)",
                     border: isSender ? "none" : "1px solid #e2e8f0",
                     position: "relative",
                   }}
                 >
-                  {/* Sender Name in group chat if receiver */}
+                  {/* Sender Name in group chat */}
                   {!isSender && m.chat?.isGroupChat && (
                     <Text
                       fontSize="10px"
                       fontWeight="700"
-                      color="purple.600"
+                      color="blue.600"
                       mb={0.5}
                     >
                       {m.sender?.name}
                     </Text>
                   )}
 
+                  {/* Audio / Voice Message */}
+                  {isAudio && m.fileUrl && !m.isDeleted && (
+                    <AudioMessagePlayer audioUrl={m.fileUrl} isSender={isSender} />
+                  )}
+
                   {/* Image Attachment Preview */}
-                  {m.fileUrl && !m.isDeleted && (
+                  {isImage && m.fileUrl && !m.isDeleted && (
                     <Box mb={m.content ? 2 : 0} borderRadius="lg" overflow="hidden">
                       <Image
                         src={m.fileUrl}
@@ -175,23 +316,33 @@ const ScrollableChat = ({ messages, handleReaction, handleDeleteMessage }) => {
                         cursor="pointer"
                         onClick={() => handleImageClick(m.fileUrl)}
                         _hover={{ opacity: 0.9 }}
-                        fallbackSrc="https://via.placeholder.com/300x200?text=Loading+Image..."
                       />
                     </Box>
                   )}
 
-                  {/* Text Content */}
-                  <Text
-                    fontSize="sm"
-                    lineHeight="1.4"
-                    fontStyle={m.isDeleted ? "italic" : "normal"}
-                    opacity={m.isDeleted ? 0.7 : 1}
-                    wordBreak="break-word"
-                  >
-                    {m.content}
-                  </Text>
+                  {/* File / Document Card */}
+                  {isFile && m.fileUrl && !m.isDeleted && (
+                    <FileMessageCard
+                      fileUrl={m.fileUrl}
+                      fileName={m.fileName || m.content}
+                      isSender={isSender}
+                    />
+                  )}
 
-                  {/* Timestamp & Status */}
+                  {/* Text Content */}
+                  {m.content && (!isFile || m.content !== m.fileName) && (
+                    <Text
+                      fontSize="sm"
+                      lineHeight="1.4"
+                      fontStyle={m.isDeleted ? "italic" : "normal"}
+                      opacity={m.isDeleted ? 0.7 : 1}
+                      wordBreak="break-word"
+                    >
+                      {m.content}
+                    </Text>
+                  )}
+
+                  {/* Timestamp & Delivery Checkmark */}
                   <Box
                     display="flex"
                     justifyContent="flex-end"
@@ -207,35 +358,34 @@ const ScrollableChat = ({ messages, handleReaction, handleDeleteMessage }) => {
                       {formatMessageTime(m.createdAt)}
                     </Text>
                     {isSender && (
-                      <Text
-                        fontSize="9px"
-                        color="whiteAlpha.900"
-                        title="Delivered"
-                      >
-                        ✓
-                      </Text>
+                      <i
+                        className="fa-solid fa-check"
+                        style={{ fontSize: "8px", opacity: 0.9 }}
+                      ></i>
                     )}
                   </Box>
 
-                  {/* Emoji Reactions List */}
+                  {/* Reactions with Vector Icons */}
                   {hasReactions && !m.isDeleted && (
                     <div className="reactions-container">
-                      {Object.entries(reactionCounts).map(([emoji, count]) => {
+                      {Object.entries(reactionCounts).map(([reactionKey, count]) => {
                         const userReacted = m.reactions.some(
-                          (r) => r.user?._id === user?._id && r.emoji === emoji
+                          (r) => r.user?._id === user?._id && r.emoji === reactionKey
                         );
+                        const iconData = QUICK_ICONS.find((q) => q.key === reactionKey) || { icon: "fa-heart" };
+
                         return (
                           <span
-                            key={emoji}
+                            key={reactionKey}
                             className={`reaction-badge ${
                               userReacted ? "user-reacted" : ""
                             }`}
                             onClick={() =>
-                              handleReaction && handleReaction(m._id, emoji)
+                              handleReaction && handleReaction(m._id, reactionKey)
                             }
                             title="Click to toggle reaction"
                           >
-                            <span>{emoji}</span>
+                            <i className={`fa-solid ${iconData.icon}`} style={{ fontSize: "10px" }}></i>
                             <span>{count}</span>
                           </span>
                         );
@@ -248,7 +398,7 @@ const ScrollableChat = ({ messages, handleReaction, handleDeleteMessage }) => {
           })}
       </ScrollableFeed>
 
-      {/* Full Size Image Preview Modal */}
+      {/* Full-Size Image Lightbox Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="3xl" isCentered>
         <ModalOverlay backdropFilter="blur(8px)" bg="blackAlpha.800" />
         <ModalContent bg="transparent" boxShadow="none">

@@ -8,7 +8,6 @@ import {
   TabPanel,
   TabList,
   Tabs,
-  Badge,
   HStack,
 } from "@chakra-ui/react";
 import Login from "../Components/Authentication/Login.js";
@@ -26,65 +25,53 @@ const HomePage = () => {
   }, [navigate]);
 
   return (
-    <Container maxW="lg" centerContent py={10}>
-      {/* Brand Header Card */}
+    <Container maxW="lg" centerContent py={{ base: 6, md: 10 }}>
+      {/* Brand Header */}
       <Box
         display="flex"
         flexDir="column"
         alignItems="center"
         justifyContent="center"
-        p={5}
-        bg="rgba(255, 255, 255, 0.95)"
-        backdropFilter="blur(20px)"
+        p={4}
+        bg="white"
         w="100%"
         mb={4}
         borderRadius="2xl"
         borderWidth="1px"
-        borderColor="whiteAlpha.500"
-        boxShadow="0 10px 30px rgba(0, 0, 0, 0.1)"
+        borderColor="gray.200"
+        boxShadow="sm"
         textAlign="center"
       >
-        <HStack spacing={2} mb={1}>
+        <HStack spacing={2} justify="center">
+          <i className="fa-solid fa-comments" style={{ color: "#3b82f6", fontSize: "28px" }}></i>
           <Text
             fontSize={{ base: "3xl", md: "4xl" }}
-            fontWeight="800"
-            bgGradient="linear(to-r, #6366f1, #a855f7, #ec4899)"
-            bgClip="text"
-            letterSpacing="-0.5px"
+            fontFamily="Work sans"
+            fontWeight="700"
+            color="gray.800"
           >
-            💬 Chatt
+            Chat-To-Talk
           </Text>
-          <Badge
-            colorScheme="purple"
-            variant="subtle"
-            borderRadius="full"
-            px={2.5}
-            py={0.5}
-            fontSize="10px"
-          >
-            v2.0
-          </Badge>
         </HStack>
-        <Text fontSize="sm" color="gray.500" fontWeight="500">
-          Fast, Real-time & Secure Messaging
+        <Text fontSize="xs" color="gray.500" fontWeight="500" mt={1}>
+          Real-time, Instant & Secure Messaging
         </Text>
       </Box>
 
       {/* Tabs Container */}
       <Box
-        bg="rgba(255, 255, 255, 0.95)"
-        backdropFilter="blur(20px)"
+        bg="white"
         w="100%"
-        p={6}
+        p={{ base: 5, md: 6 }}
         borderRadius="2xl"
         borderWidth="1px"
-        borderColor="whiteAlpha.500"
-        boxShadow="0 15px 35px rgba(0, 0, 0, 0.1)"
+        borderColor="gray.200"
+        boxShadow="sm"
       >
-        <Tabs isFitted variant="soft-rounded" colorScheme="purple">
+        <Tabs isFitted variant="soft-rounded" colorScheme="blue">
           <TabList mb={4} p={1} bg="gray.100" borderRadius="xl">
             <Tab fontWeight="600" borderRadius="lg">
-              Sign In
+              Login
             </Tab>
             <Tab fontWeight="600" borderRadius="lg">
               Register

@@ -21,8 +21,14 @@ import {
   IconButton,
   HStack,
   Badge,
+  Modal,
+  ModalOverlay,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
 } from "@chakra-ui/react";
-import { BellIcon, ChevronDownIcon, Search2Icon } from "@chakra-ui/icons";
+import { BellIcon, ChevronDownIcon } from "@chakra-ui/icons";
 import { ChatState } from "../../Context/ChatProvider";
 import ProfileModal from "./ProfileModal";
 import ChatLoading from "../Chat/ChatLoading.js";
@@ -43,8 +49,22 @@ const SideDrawer = () => {
   const [loading, setLoading] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
 
+  // Profile Modal & Logout Modal states
+  const {
+    isOpen: isProfileOpen,
+    onOpen: onProfileOpen,
+    onClose: onProfileClose,
+  } = useDisclosure();
+
+  const {
+    isOpen: isLogoutOpen,
+    onOpen: onLogoutOpen,
+    onClose: onLogoutClose,
+  } = useDisclosure();
+
   const {
     user,
+    setUser,
     setSelectedChat,
     chats,
     setChats,
@@ -57,9 +77,21 @@ const SideDrawer = () => {
 
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  const logoutHandler = () => {
+  const confirmLogout = () => {
     localStorage.removeItem("userInfo");
+    setUser(null);
+    setSelectedChat(null);
+    setChats([]);
+    setNotification([]);
+    onLogoutClose();
     navigate("/");
+    toast({
+      title: "Logged Out",
+      status: "info",
+      duration: 2000,
+      isClosable: true,
+      position: "bottom",
+    });
   };
 
   const handleSearch = async () => {
@@ -147,39 +179,39 @@ const SideDrawer = () => {
         display="flex"
         justifyContent="space-between"
         alignItems="center"
-        bg="rgba(255, 255, 255, 0.95)"
-        backdropFilter="blur(16px)"
+        bg="white"
         w="100%"
-        p="8px 16px"
-        borderBottom="1px solid rgba(226, 232, 240, 0.8)"
-        boxShadow="0 4px 20px rgba(0, 0, 0, 0.04)"
+        p="8px 14px"
+        borderBottomWidth="1px"
+        borderColor="gray.200"
+        boxShadow="sm"
       >
-        <Tooltip label="Search Users to start chat" hasArrow placement="bottom-start">
+        <Tooltip label="Search Users" hasArrow placement="bottom-start">
           <Button
             variant="ghost"
             onClick={onOpen}
-            leftIcon={<Search2Icon color="purple.500" />}
             borderRadius="full"
             bg="gray.100"
             _hover={{ bg: "gray.200" }}
             size="sm"
-            px={4}
+            px={3.5}
           >
-            <Text display={{ base: "none", md: "flex" }} fontWeight="600" fontSize="sm">
-              Search Users
+            <i className="fa-solid fa-magnifying-glass" style={{ color: "#4f46e5" }}></i>
+            <Text display={{ base: "none", md: "flex" }} px="2" fontWeight="600" fontSize="sm">
+              Search User
             </Text>
           </Button>
         </Tooltip>
 
         <Box display="flex" alignItems="center" gap={2}>
+          <i className="fa-solid fa-comments" style={{ color: "#6366f1", fontSize: "20px" }}></i>
           <Text
-            fontSize={{ base: "xl", md: "2xl" }}
-            fontWeight="800"
-            letterSpacing="-0.5px"
-            bgGradient="linear(to-r, #6366f1, #a855f7, #ec4899)"
-            bgClip="text"
+            fontSize={{ base: "lg", md: "2xl" }}
+            fontFamily="Work sans"
+            fontWeight="700"
+            color="gray.800"
           >
-            💬 Chatt
+            Chat-To-Talk
           </Text>
           {onlineUsers?.length > 0 && (
             <Badge
@@ -199,18 +231,23 @@ const SideDrawer = () => {
           )}
         </Box>
 
-        <HStack spacing={2}>
-          {/* Sound Toggle */}
+        <HStack spacing={1}>
+          {/* Sound Toggle Button */}
           <Tooltip
-            label={soundEnabled ? "Mute notifications" : "Enable notifications sound"}
+            label={soundEnabled ? "Sound enabled (click to mute)" : "Sound muted (click to enable)"}
             hasArrow
           >
             <IconButton
               size="sm"
               variant="ghost"
               borderRadius="full"
-              aria-label="Toggle Sound"
-              icon={<span>{soundEnabled ? "🔊" : "🔇"}</span>}
+              aria-label="Toggle Audio"
+              icon={
+                <i
+                  className={soundEnabled ? "fa-solid fa-volume-high" : "fa-solid fa-volume-xmark"}
+                  style={{ color: soundEnabled ? "#6366f1" : "#94a3b8" }}
+                ></i>
+              }
               onClick={toggleSound}
             />
           </Tooltip>
@@ -282,8 +319,8 @@ const SideDrawer = () => {
               </Box>
               <MenuDivider my={1} />
               {!notification.length && (
-                <Text fontSize="sm" color="gray.500" p={2} textAlign="center">
-                  No new messages ✨
+                <Text fontSize="sm" color="gray.500" p={3} textAlign="center">
+                  No New Messages
                 </Text>
               )}
               {notification.map((noti) => (
@@ -299,11 +336,11 @@ const SideDrawer = () => {
                   <Box>
                     <Text fontWeight="600" fontSize="xs">
                       {noti.chat.isGroupChat
-                        ? `Group: ${noti.chat.chatName}`
-                        : getSender(user, noti.chat.users)}
+                        ? `New in ${noti.chat.chatName}`
+                        : `New from ${getSender(user, noti.chat.users)}`}
                     </Text>
-                    <Text fontSize="xs" color="gray.600" isTruncated maxW="220px">
-                      {noti.content || "Sent an attachment"}
+                    <Text fontSize="xs" color="gray.500" isTruncated maxW="220px">
+                      {noti.content || (noti.fileType === "audio" ? "Voice message" : "Attachment")}
                     </Text>
                   </Box>
                 </MenuItem>
@@ -311,7 +348,7 @@ const SideDrawer = () => {
             </MenuList>
           </Menu>
 
-          {/* User Profile Menu */}
+          {/* User Profile & Logout Menu */}
           <Menu>
             <MenuButton
               as={Button}
@@ -339,29 +376,69 @@ const SideDrawer = () => {
                 </Text>
               </Box>
               <MenuDivider my={1} />
-              <ProfileModal user={user}>
-                <MenuItem borderRadius="lg">👤 View & Edit Profile</MenuItem>
-              </ProfileModal>
+              <MenuItem
+                borderRadius="lg"
+                icon={<i className="fa-solid fa-user"></i>}
+                onClick={onProfileOpen}
+              >
+                My Profile
+              </MenuItem>
               <MenuDivider my={1} />
               <MenuItem
                 borderRadius="lg"
+                icon={<i className="fa-solid fa-right-from-bracket"></i>}
                 color="red.500"
                 _hover={{ bg: "red.50" }}
-                onClick={logoutHandler}
+                onClick={onLogoutOpen}
               >
-                🚪 Logout
+                Logout
               </MenuItem>
             </MenuList>
           </Menu>
         </HStack>
       </Box>
 
+      {/* Controlled Profile Modal */}
+      {user && (
+        <ProfileModal
+          user={user}
+          isOpen={isProfileOpen}
+          onClose={onProfileClose}
+        />
+      )}
+
+      {/* Logout Confirmation Modal */}
+      <Modal isOpen={isLogoutOpen} onClose={onLogoutClose} isCentered size="sm">
+        <ModalOverlay backdropFilter="blur(4px)" bg="blackAlpha.600" />
+        <ModalContent borderRadius="2xl" mx={4} overflow="hidden">
+          <ModalHeader fontSize="lg" fontWeight="700" pt={5} pb={2} textAlign="center">
+            <i
+              className="fa-solid fa-right-from-bracket"
+              style={{ color: "#ef4444", fontSize: "28px", display: "block", marginBottom: "8px" }}
+            ></i>
+            Log Out of Chat-To-Talk?
+          </ModalHeader>
+          <ModalBody textAlign="center" color="gray.600" fontSize="sm" py={2}>
+            Are you sure you want to log out? You will need to sign in again to access your messages.
+          </ModalBody>
+          <ModalFooter display="flex" justifyContent="center" gap={3} pt={4} pb={5}>
+            <Button variant="ghost" onClick={onLogoutClose} borderRadius="lg" px={5}>
+              Cancel
+            </Button>
+            <Button colorScheme="red" onClick={confirmLogout} borderRadius="lg" px={5}>
+              Yes, Log Out
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
+
       {/* Search Users Drawer */}
       <Drawer placement="left" onClose={onClose} isOpen={isOpen}>
         <DrawerOverlay backdropFilter="blur(4px)" />
         <DrawerContent borderRightRadius="2xl">
           <DrawerHeader borderBottomWidth="1px" fontSize="lg" fontWeight="700">
-            🔍 Search Users
+            <i className="fa-solid fa-magnifying-glass" style={{ marginRight: "8px" }}></i>
+            Search Users
           </DrawerHeader>
           <DrawerBody p={4}>
             <Box display="flex" pb={3} gap={2}>
@@ -372,7 +449,7 @@ const SideDrawer = () => {
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                 borderRadius="xl"
               />
-              <Button colorScheme="purple" onClick={handleSearch} borderRadius="xl">
+              <Button colorScheme="blue" onClick={handleSearch} borderRadius="xl">
                 Go
               </Button>
             </Box>
@@ -389,7 +466,7 @@ const SideDrawer = () => {
             )}
             {loadingChat && (
               <Box textAlign="center" py={4}>
-                <Spinner size="lg" color="purple.500" />
+                <Spinner size="lg" color="blue.500" />
               </Box>
             )}
           </DrawerBody>

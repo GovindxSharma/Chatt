@@ -50,7 +50,7 @@ const Register = () => {
           if (data.url) {
             setPic(data.url.toString());
             toast({
-              title: "Avatar Uploaded Successfully",
+              title: "Picture Uploaded",
               status: "success",
               duration: 2500,
               isClosable: true,
@@ -61,8 +61,8 @@ const Register = () => {
         .catch(() => {
           setUploadingPic(false);
           toast({
-            title: "Failed to upload image",
-            description: "Default avatar will be used",
+            title: "Upload Failed",
+            description: "Default picture will be used",
             status: "warning",
             duration: 3000,
             isClosable: true,
@@ -70,7 +70,7 @@ const Register = () => {
         });
     } else {
       toast({
-        title: "Please select a JPG or PNG Image",
+        title: "Please Select an Image",
         status: "warning",
         duration: 3000,
         isClosable: true,
@@ -82,7 +82,7 @@ const Register = () => {
     setLoading(true);
     if (!name || !email || !password || !confirmPassword) {
       toast({
-        title: "Please fill in all required fields",
+        title: "Fill Required Fields",
         status: "warning",
         duration: 3000,
         isClosable: true,
@@ -93,7 +93,7 @@ const Register = () => {
     }
     if (password !== confirmPassword) {
       toast({
-        title: "Passwords do not match",
+        title: "Password Doesn't Match",
         status: "warning",
         duration: 3000,
         isClosable: true,
@@ -123,7 +123,7 @@ const Register = () => {
       );
 
       toast({
-        title: "🎉 Account Created Successfully!",
+        title: "Registration Successful",
         status: "success",
         duration: 3000,
         isClosable: true,
@@ -136,11 +136,11 @@ const Register = () => {
     } catch (error) {
       setLoading(false);
       toast({
-        title: "Registration Failed",
+        title: "Error Occurred",
         description:
           error.response?.data?.message ||
           error.message ||
-          "Could not create account",
+          "Registration failed",
         status: "error",
         duration: 4000,
         isClosable: true,
@@ -150,17 +150,16 @@ const Register = () => {
   };
 
   return (
-    <VStack spacing={3}>
+    <VStack spacing={2.5}>
       <FormControl id="name" isRequired>
         <FormLabel fontSize="xs" fontWeight="600" mb={1}>
-          Full Name
+          Name
         </FormLabel>
         <Input
-          placeholder="e.g. Alex Johnson"
+          placeholder="Enter Your Name"
           onChange={(e) => setName(e.target.value)}
           value={name}
           borderRadius="xl"
-          focusBorderColor="purple.400"
         />
       </FormControl>
 
@@ -169,11 +168,10 @@ const Register = () => {
           Email Address
         </FormLabel>
         <Input
-          placeholder="alex@example.com"
+          placeholder="Enter Your Email"
           onChange={(e) => setEmail(e.target.value)}
           value={email}
           borderRadius="xl"
-          focusBorderColor="purple.400"
         />
       </FormControl>
 
@@ -182,11 +180,10 @@ const Register = () => {
           Bio / Status (Optional)
         </FormLabel>
         <Input
-          placeholder="e.g. Product designer & coffee lover ☕"
+          placeholder="Status message..."
           onChange={(e) => setBio(e.target.value)}
           value={bio}
           borderRadius="xl"
-          focusBorderColor="purple.400"
         />
       </FormControl>
 
@@ -197,11 +194,10 @@ const Register = () => {
         <InputGroup>
           <Input
             type={show ? "text" : "password"}
-            placeholder="Create password"
+            placeholder="Enter Password"
             onChange={(e) => setPassword(e.target.value)}
             value={password}
             borderRadius="xl"
-            focusBorderColor="purple.400"
           />
           <InputRightElement width="4.5rem">
             <Button
@@ -224,11 +220,10 @@ const Register = () => {
         <InputGroup>
           <Input
             type={show ? "text" : "password"}
-            placeholder="Confirm password"
+            placeholder="Confirm Password"
             onChange={(e) => setConfirmPassword(e.target.value)}
             value={confirmPassword}
             borderRadius="xl"
-            focusBorderColor="purple.400"
           />
           <InputRightElement width="4.5rem">
             <Button
@@ -246,7 +241,7 @@ const Register = () => {
 
       <FormControl id="pic">
         <FormLabel fontSize="xs" fontWeight="600" mb={1}>
-          Profile Picture (Optional)
+          Upload Your Picture
         </FormLabel>
         <Input
           type="file"
@@ -258,16 +253,15 @@ const Register = () => {
       </FormControl>
 
       <Button
-        colorScheme="purple"
+        colorScheme="blue"
         width="100%"
-        style={{ marginTop: 12 }}
+        style={{ marginTop: 10 }}
         onClick={submitHandler}
         isLoading={loading || uploadingPic}
         borderRadius="xl"
         py={5}
-        boxShadow="0 4px 14px rgba(99, 102, 241, 0.4)"
       >
-        Create Account
+        Register
       </Button>
     </VStack>
   );

@@ -22,11 +22,11 @@ const allMessages = asyncHandler(async (req, res) => {
   }
 });
 
-//@description     Create New Message (Text or Media)
+//@description     Create New Message (Text, Audio, File, Image)
 //@route           POST /api/message/
 //@access          Protected
 const sendMessage = asyncHandler(async (req, res) => {
-  const { content, chatId, fileUrl } = req.body;
+  const { content, chatId, fileUrl, fileType, fileName } = req.body;
 
   if ((!content && !fileUrl) || !chatId) {
     res.status(400);
@@ -39,6 +39,8 @@ const sendMessage = asyncHandler(async (req, res) => {
     sender: req.user._id,
     content: content || "",
     fileUrl: fileUrl || "",
+    fileType: fileType || "",
+    fileName: fileName || "",
     chat: rawChatId,
   };
 
@@ -87,6 +89,8 @@ const deleteMessage = asyncHandler(async (req, res) => {
   message.isDeleted = true;
   message.content = "This message was deleted";
   message.fileUrl = "";
+  message.fileType = "";
+  message.fileName = "";
   await message.save();
 
   res.json({ message: "Message deleted successfully", _id: messageId, chatId: message.chat._id });

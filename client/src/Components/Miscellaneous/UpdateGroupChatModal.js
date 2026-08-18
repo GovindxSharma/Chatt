@@ -230,24 +230,28 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
         icon={<ViewIcon />}
         onClick={onOpen}
         variant="ghost"
-        colorScheme="purple"
+        colorScheme="blue"
         borderRadius="full"
         aria-label="Group Settings"
       />
 
       <Modal onClose={onClose} isOpen={isOpen} isCentered size="lg">
         <ModalOverlay backdropFilter="blur(6px)" bg="blackAlpha.600" />
-        <ModalContent borderRadius="2xl" overflow="hidden" boxShadow="2xl">
+        <ModalContent borderRadius="2xl" overflow="hidden" boxShadow="2xl" mx={4}>
           <ModalHeader
-            fontSize="22px"
+            fontSize="20px"
+            fontFamily="Work sans"
             fontWeight="700"
             display="flex"
             justifyContent="center"
-            bg="linear-gradient(135deg, #6366f1 0%, #a855f7 100%)"
+            alignItems="center"
+            gap={2}
+            bg="linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)"
             color="white"
             py={4}
           >
-            ⚙️ {selectedChat.chatName}
+            <i className="fa-solid fa-users-gear"></i>
+            {selectedChat.chatName}
           </ModalHeader>
 
           <ModalCloseButton color="white" />
@@ -277,11 +281,11 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
                 borderRadius="xl"
               />
               <Button
-                colorScheme="purple"
+                colorScheme="blue"
                 isLoading={renameLoading}
                 onClick={handleRename}
                 borderRadius="xl"
-                px={6}
+                px={5}
               >
                 Update
               </Button>
@@ -301,7 +305,7 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
             <Box maxH="180px" overflowY="auto">
               {loading ? (
                 <Box textAlign="center" py={3}>
-                  <Spinner size="md" color="purple.500" />
+                  <Spinner size="md" color="blue.500" />
                 </Box>
               ) : (
                 searchResult?.slice(0, 4).map((u) => (

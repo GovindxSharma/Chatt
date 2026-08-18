@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { ChatState } from "../../Context/ChatProvider";
 import {
   Box,
+  Button,
   Text,
   IconButton,
   useToast,
@@ -16,13 +17,12 @@ import {
   InputLeftElement,
   Image,
   Tooltip,
+  Menu,
+  MenuButton,
+  MenuList,
+  MenuItem,
 } from "@chakra-ui/react";
-import {
-  ArrowBackIcon,
-  Search2Icon,
-  CloseIcon,
-  AttachmentIcon,
-} from "@chakra-ui/icons";
+import { ArrowBackIcon, CloseIcon } from "@chakra-ui/icons";
 import { getSenderFull, getSender } from "../../config/ChatLogics";
 import ProfileModal from "../Miscellaneous/ProfileModal";
 import Lottie from "react-lottie";
@@ -33,7 +33,6 @@ import ScrollableChat from "../Chat/ScrollableChat.js";
 import UpdateGroupChatModal from "../Miscellaneous/UpdateGroupChatModal.js";
 import "./style.css";
 
-// Dynamically resolve backend endpoint
 const getEndpoint = () => {
   if (process.env.REACT_APP_ENDPOINT) {
     return process.env.REACT_APP_ENDPOINT;
@@ -47,10 +46,6 @@ const getEndpoint = () => {
 const ENDPOINT = getEndpoint();
 let socket, selectedChatCompare;
 
-const COMMON_EMOJIS = [
-  "😀", "😂", "🥰", "😍", "😎", "🔥", "👍", "🙌", "❤️", "🎉", "✨", "💯", "🙏", "🚀"
-];
-
 const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -60,11 +55,19 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [attachedImage, setAttachedImage] = useState("");
-  const [uploadingImage, setUploadingImage] = useState(false);
 
+  // File Attachment states
+  const [attachedFile, setAttachedFile] = useState(null); // { url, type, name }
+  const [uploadingFile, setUploadingFile] = useState(false);
   const fileInputRef = useRef(null);
+
+  // Audio Voice Recording states
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const timerIntervalRef = useRef(null);
+
   const toast = useToast();
 
   const defaultOptions = {
@@ -130,71 +133,140 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     }
   };
 
-  // Upload image attachment
-  const handleImageUpload = (file) => {
+  // Upload file or image
+  const handleFileUpload = (file, explicitType = "") => {
     if (!file) return;
-    if (
-      file.type === "image/jpeg" ||
-      file.type === "image/png" ||
-      file.type === "image/webp" ||
-      file.type === "image/gif"
-    ) {
-      setUploadingImage(true);
-      const data = new FormData();
-      data.append("file", file);
-      data.append("upload_preset", "chat-app");
-      data.append("cloud_name", "ddnwjdqbf");
+    setUploadingFile(true);
 
-      fetch("https://api.cloudinary.com/v1_1/ddnwjdqbf/image/upload", {
-        method: "post",
-        body: data,
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.url) {
-            setAttachedImage(data.url.toString());
-            toast({
-              title: "Image Attached",
-              status: "success",
-              duration: 2000,
-              isClosable: true,
-            });
-          }
-          setUploadingImage(false);
-        })
-        .catch(() => {
-          setUploadingImage(false);
+    const isImage = file.type.startsWith("image/");
+    const isAudio = file.type.startsWith("audio/");
+    const determinedType = explicitType || (isImage ? "image" : isAudio ? "audio" : "file");
+
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", "chat-app");
+    data.append("cloud_name", "ddnwjdqbf");
+
+    // Cloudinary upload (auto resource type handles images, video, raw documents)
+    const resourceType = isImage ? "image" : isAudio ? "video" : "auto";
+
+    fetch(`https://api.cloudinary.com/v1_1/ddnwjdqbf/${resourceType}/upload`, {
+      method: "post",
+      body: data,
+    })
+      .then((res) => res.json())
+      .then((resData) => {
+        if (resData.url || resData.secure_url) {
+          const finalUrl = (resData.secure_url || resData.url).toString();
+          setAttachedFile({
+            url: finalUrl,
+            type: determinedType,
+            name: file.name || "Attachment",
+          });
           toast({
-            title: "Upload Failed",
-            description: "Could not upload image",
-            status: "warning",
-            duration: 3000,
+            title: "File Attached",
+            status: "success",
+            duration: 2000,
             isClosable: true,
           });
+        }
+        setUploadingFile(false);
+      })
+      .catch(() => {
+        setUploadingFile(false);
+        toast({
+          title: "Upload Failed",
+          description: "Could not upload file",
+          status: "warning",
+          duration: 3000,
+          isClosable: true,
         });
-    } else {
+      });
+  };
+
+  // Voice Note Recording
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const audioFile = new File([audioBlob], `voice-note-${Date.now()}.webm`, {
+          type: "audio/webm",
+        });
+        handleFileUpload(audioFile, "audio");
+        // Stop all audio tracks
+        stream.getTracks().forEach((track) => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setRecordingDuration(0);
+
+      timerIntervalRef.current = setInterval(() => {
+        setRecordingDuration((prev) => prev + 1);
+      }, 1000);
+    } catch (err) {
       toast({
-        title: "Please select a valid image file",
-        status: "warning",
-        duration: 3000,
+        title: "Microphone Access Denied",
+        description: "Please allow microphone access to record voice notes",
+        status: "error",
+        duration: 3500,
         isClosable: true,
       });
     }
   };
 
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      clearInterval(timerIntervalRef.current);
+    }
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+      mediaRecorderRef.current = null;
+      audioChunksRef.current = [];
+      setIsRecording(false);
+      clearInterval(timerIntervalRef.current);
+      setRecordingDuration(0);
+    }
+  };
+
+  // Format recording duration timer (MM:SS)
+  const formatDuration = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+  };
+
   // Send message
   const sendMessage = async (event) => {
-    if ((event.key === "Enter" || event.type === "click") && (newMessage.trim() || attachedImage)) {
-      if (socketConnected) {
+    if (
+      (event?.key === "Enter" || event?.type === "click") &&
+      (newMessage.trim() || attachedFile)
+    ) {
+      if (socketConnected && selectedChat) {
         socket.emit("stop typing", selectedChat._id);
       }
 
       const contentToSend = newMessage.trim();
-      const imageToSend = attachedImage;
+      const fileToSend = attachedFile;
 
       setNewMessage("");
-      setAttachedImage("");
-      setShowEmojiPicker(false);
+      setAttachedFile(null);
 
       try {
         const config = {
@@ -204,15 +276,15 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           },
         };
 
-        const { data } = await axios.post(
-          "/api/message",
-          {
-            content: contentToSend,
-            chatId: selectedChat._id,
-            fileUrl: imageToSend,
-          },
-          config
-        );
+        const payload = {
+          content: contentToSend || (fileToSend ? fileToSend.name : ""),
+          chatId: selectedChat._id,
+          fileUrl: fileToSend?.url || "",
+          fileType: fileToSend?.type || "",
+          fileName: fileToSend?.name || "",
+        };
+
+        const { data } = await axios.post("/api/message", payload, config);
 
         if (socket) {
           socket.emit("new message", data);
@@ -249,12 +321,10 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
         config
       );
 
-      // Update local message list
       setMessages((prev) =>
         prev.map((msg) => (msg._id === messageId ? data : msg))
       );
 
-      // Broadcast reaction via socket
       if (socket) {
         socket.emit("message reaction", {
           chatId: selectedChat._id,
@@ -285,7 +355,14 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
       setMessages((prev) =>
         prev.map((msg) =>
           msg._id === messageId
-            ? { ...msg, isDeleted: true, content: "This message was deleted", fileUrl: "" }
+            ? {
+                ...msg,
+                isDeleted: true,
+                content: "This message was deleted",
+                fileUrl: "",
+                fileType: "",
+                fileName: "",
+              }
             : msg
         )
       );
@@ -313,7 +390,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     }
   };
 
-  // Initialize socket
+  // Socket initialization
   useEffect(() => {
     socket = io(ENDPOINT, { transports: ["websocket", "polling"] });
     socket.emit("setup", user);
@@ -329,6 +406,9 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
       if (socket) {
         socket.disconnect();
       }
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
     };
     // eslint-disable-next-line
   }, []);
@@ -338,10 +418,12 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     selectedChatCompare = selectedChat;
     setShowSearch(false);
     setSearchQuery("");
+    setAttachedFile(null);
+    cancelRecording();
     // eslint-disable-next-line
   }, [selectedChat]);
 
-  // Handle incoming real-time socket events
+  // Real-time socket event listeners
   useEffect(() => {
     const handleIncomingMessage = (newMessageReceived) => {
       if (
@@ -378,7 +460,14 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
         setMessages((prev) =>
           prev.map((msg) =>
             msg._id === data.messageId
-              ? { ...msg, isDeleted: true, content: "This message was deleted", fileUrl: "" }
+              ? {
+                  ...msg,
+                  isDeleted: true,
+                  content: "This message was deleted",
+                  fileUrl: "",
+                  fileType: "",
+                  fileName: "",
+                }
               : msg
           )
         );
@@ -417,7 +506,6 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     }, timerLength);
   };
 
-  // Filter messages based on in-chat search
   const filteredMessages = searchQuery.trim()
     ? messages.filter((m) =>
         m.content?.toLowerCase().includes(searchQuery.toLowerCase().trim())
@@ -428,7 +516,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     <>
       {selectedChat ? (
         <>
-          {/* Chat Header */}
+          {/* Top Bar Header */}
           <Box
             w="100%"
             pb={3}
@@ -447,7 +535,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                 variant="ghost"
                 borderRadius="full"
                 size="sm"
-                aria-label="Back"
+                aria-label="Back to chats"
               />
 
               {!selectedChat.isGroupChat && otherUser ? (
@@ -466,14 +554,15 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                 <Avatar
                   size="sm"
                   name={selectedChat.chatName}
-                  bg="purple.500"
+                  bg="blue.500"
+                  icon={<i className="fa-solid fa-users" style={{ fontSize: "14px", color: "white" }}></i>}
                 />
               )}
 
               <Box overflow="hidden">
                 <Text
                   fontSize={{ base: "md", md: "lg" }}
-                  fontWeight="800"
+                  fontWeight="700"
                   color="gray.800"
                   isTruncated
                 >
@@ -484,7 +573,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                 <Text fontSize="10px" color="gray.500">
                   {!selectedChat.isGroupChat
                     ? isOtherUserOnline
-                      ? "🟢 Active Now"
+                      ? "Active Now"
                       : "Offline"
                     : `${selectedChat.users?.length || 0} members`}
                 </Text>
@@ -492,12 +581,12 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
             </HStack>
 
             <HStack spacing={1}>
-              <Tooltip label="Search messages in chat" hasArrow>
+              <Tooltip label="Search in conversation" hasArrow>
                 <IconButton
                   size="sm"
                   variant="ghost"
                   borderRadius="full"
-                  icon={<Search2Icon color="gray.600" />}
+                  icon={<i className="fa-solid fa-magnifying-glass" style={{ color: "#64748b" }}></i>}
                   onClick={() => setShowSearch(!showSearch)}
                   aria-label="Search Messages"
                 />
@@ -520,7 +609,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
             <Box w="100%" py={2} px={1}>
               <InputGroup size="sm">
                 <InputLeftElement pointerEvents="none">
-                  <Search2Icon color="gray.400" />
+                  <i className="fa-solid fa-magnifying-glass" style={{ color: "#94a3b8", fontSize: "12px" }}></i>
                 </InputLeftElement>
                 <Input
                   placeholder="Search in this conversation..."
@@ -549,7 +638,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
             </Box>
           )}
 
-          {/* Messages Container */}
+          {/* Messages Feed Area */}
           <Box
             display="flex"
             flexDir="column"
@@ -567,11 +656,11 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
             {loading ? (
               <Spinner
                 size="xl"
-                w={16}
-                h={16}
+                w={14}
+                h={14}
                 alignSelf="center"
                 margin="auto"
-                color="purple.500"
+                color="blue.500"
                 thickness="3px"
               />
             ) : (
@@ -584,150 +673,243 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
               </div>
             )}
 
-            {/* Typing Indicator */}
+            {/* Live Typing Animation */}
             {isTyping && (
               <Box mb={2} ml={1} display="flex" alignItems="center">
                 <Lottie
                   options={defaultOptions}
-                  width={60}
-                  height={30}
+                  width={55}
+                  height={25}
                   style={{ marginLeft: 0 }}
                 />
               </Box>
             )}
 
-            {/* Attached Image Preview */}
-            {attachedImage && (
+            {/* Attached File/Image Preview Chip */}
+            {attachedFile && (
               <Box
                 mb={2}
-                p={2}
+                p={2.5}
                 bg="white"
                 borderRadius="xl"
                 boxShadow="md"
                 display="inline-flex"
                 alignItems="center"
-                gap={2}
-                maxW="200px"
+                gap={3}
+                maxW="260px"
                 position="relative"
+                borderWidth="1px"
+                borderColor="gray.200"
               >
-                <Image
-                  src={attachedImage}
-                  alt="Attachment Preview"
-                  maxH="60px"
-                  borderRadius="md"
-                />
+                {attachedFile.type === "image" ? (
+                  <Image
+                    src={attachedFile.url}
+                    alt="Preview"
+                    maxH="50px"
+                    borderRadius="md"
+                  />
+                ) : (
+                  <Box p={2} bg="blue.50" borderRadius="md" color="blue.600">
+                    <i
+                      className={`fa-solid ${
+                        attachedFile.type === "audio" ? "fa-microphone" : "fa-file"
+                      }`}
+                    ></i>
+                  </Box>
+                )}
+                <Box overflow="hidden" flex="1">
+                  <Text fontSize="xs" fontWeight="600" isTruncated>
+                    {attachedFile.name}
+                  </Text>
+                  <Text fontSize="10px" color="gray.500">
+                    Ready to send
+                  </Text>
+                </Box>
                 <IconButton
                   size="xs"
                   colorScheme="red"
                   variant="solid"
                   borderRadius="full"
                   icon={<CloseIcon boxSize="8px" />}
-                  onClick={() => setAttachedImage("")}
-                  position="absolute"
-                  top="-6px"
-                  right="-6px"
-                  aria-label="Remove Image"
+                  onClick={() => setAttachedFile(null)}
+                  aria-label="Remove Attachment"
                 />
               </Box>
             )}
 
-            {/* Quick Emoji Picker Bar */}
-            {showEmojiPicker && (
-              <Box className="emoji-picker-strip" borderRadius="xl" mb={2}>
-                {COMMON_EMOJIS.map((emoji) => (
-                  <button
-                    key={emoji}
-                    className="emoji-strip-btn"
-                    onClick={() => setNewMessage((prev) => prev + emoji)}
-                  >
-                    {emoji}
-                  </button>
-                ))}
-              </Box>
-            )}
+            {/* Hidden File Input for Picker */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: "none" }}
+              onChange={(e) => handleFileUpload(e.target.files[0])}
+            />
 
-            {/* Message Input Form */}
-            <FormControl
-              onKeyDown={sendMessage}
-              id="message-input"
-              isRequired
-              mt={2}
-            >
-              <InputGroup size="md">
-                <InputLeftElement width="70px" display="flex" gap={1} pl={2}>
-                  {/* Image Attachment Trigger */}
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept="image/*"
-                    style={{ display: "none" }}
-                    onChange={(e) => handleImageUpload(e.target.files[0])}
+            {/* Bottom Input / Voice Recording Bar */}
+            {isRecording ? (
+              /* Live Voice Recording UI */
+              <Box
+                display="flex"
+                alignItems="center"
+                justifyContent="space-between"
+                p={3}
+                bg="white"
+                borderRadius="full"
+                boxShadow="md"
+                mt={2}
+                border="2px solid #ef4444"
+              >
+                <HStack spacing={3}>
+                  <Box
+                    as="span"
+                    w="10px"
+                    h="10px"
+                    bg="red.500"
+                    borderRadius="full"
+                    animation="pulse-online 1s infinite"
                   />
-                  <Tooltip label="Attach Image" hasArrow>
-                    <IconButton
-                      size="sm"
-                      variant="ghost"
-                      borderRadius="full"
-                      icon={
-                        uploadingImage ? (
-                          <Spinner size="xs" color="purple.500" />
-                        ) : (
-                          <AttachmentIcon color="gray.500" />
-                        )
-                      }
-                      onClick={() => fileInputRef.current?.click()}
-                      isLoading={uploadingImage}
-                      aria-label="Attach File"
-                    />
-                  </Tooltip>
-
-                  {/* Emoji Picker Toggle */}
-                  <Tooltip label="Emojis" hasArrow>
-                    <IconButton
-                      size="sm"
-                      variant="ghost"
-                      borderRadius="full"
-                      icon={<span>😊</span>}
-                      onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                      aria-label="Emoji Picker"
-                    />
-                  </Tooltip>
-                </InputLeftElement>
-
-                <Input
-                  variant="filled"
-                  bg="white"
-                  placeholder="Type a message..."
-                  value={newMessage}
-                  onChange={typingHandler}
-                  borderRadius="full"
-                  pl="76px"
-                  pr="50px"
-                  py={5}
-                  boxShadow="sm"
-                  _focus={{
-                    bg: "white",
-                    borderColor: "purple.400",
-                    boxShadow: "0 0 0 1px #8b5cf6",
-                  }}
-                />
-
-                <InputRightElement pr={2}>
+                  <Text fontSize="sm" fontWeight="700" color="red.500">
+                    Recording... {formatDuration(recordingDuration)}
+                  </Text>
+                </HStack>
+                <HStack spacing={2}>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    colorScheme="gray"
+                    onClick={cancelRecording}
+                    borderRadius="full"
+                  >
+                    Cancel
+                  </Button>
                   <IconButton
                     size="sm"
-                    colorScheme="purple"
+                    colorScheme="red"
                     borderRadius="full"
-                    icon={<span>➤</span>}
-                    onClick={sendMessage}
-                    aria-label="Send Message"
-                    isDisabled={!newMessage.trim() && !attachedImage}
+                    icon={<i className="fa-solid fa-stop"></i>}
+                    onClick={stopRecording}
+                    aria-label="Stop & Attach Voice Note"
                   />
-                </InputRightElement>
-              </InputGroup>
-            </FormControl>
+                </HStack>
+              </Box>
+            ) : (
+              /* Standard Input Bar */
+              <FormControl
+                onKeyDown={sendMessage}
+                id="message-input"
+                isRequired
+                mt={2}
+              >
+                <InputGroup size="md">
+                  {/* Attachment Menu (Files, Photos, Audio) */}
+                  <InputLeftElement width="50px" pl={2}>
+                    <Menu>
+                      <MenuButton
+                        as={IconButton}
+                        size="sm"
+                        variant="ghost"
+                        borderRadius="full"
+                        aria-label="Attach Menu"
+                        icon={
+                          uploadingFile ? (
+                            <Spinner size="xs" color="blue.500" />
+                          ) : (
+                            <i className="fa-solid fa-paperclip" style={{ color: "#64748b" }}></i>
+                          )
+                        }
+                        isLoading={uploadingFile}
+                      />
+                      <MenuList p={2} borderRadius="xl" boxShadow="2xl" minW="160px">
+                        <MenuItem
+                          borderRadius="lg"
+                          icon={<i className="fa-solid fa-image" style={{ color: "#3b82f6" }}></i>}
+                          onClick={() => {
+                            if (fileInputRef.current) {
+                              fileInputRef.current.accept = "image/*";
+                              fileInputRef.current.click();
+                            }
+                          }}
+                        >
+                          Photo / Image
+                        </MenuItem>
+                        <MenuItem
+                          borderRadius="lg"
+                          icon={<i className="fa-solid fa-file" style={{ color: "#10b981" }}></i>}
+                          onClick={() => {
+                            if (fileInputRef.current) {
+                              fileInputRef.current.accept = "*/*";
+                              fileInputRef.current.click();
+                            }
+                          }}
+                        >
+                          Document / File
+                        </MenuItem>
+                        <MenuItem
+                          borderRadius="lg"
+                          icon={<i className="fa-solid fa-music" style={{ color: "#a855f7" }}></i>}
+                          onClick={() => {
+                            if (fileInputRef.current) {
+                              fileInputRef.current.accept = "audio/*";
+                              fileInputRef.current.click();
+                            }
+                          }}
+                        >
+                          Audio File
+                        </MenuItem>
+                      </MenuList>
+                    </Menu>
+                  </InputLeftElement>
+
+                  <Input
+                    variant="filled"
+                    bg="white"
+                    placeholder="Type a message..."
+                    value={newMessage}
+                    onChange={typingHandler}
+                    borderRadius="full"
+                    pl="52px"
+                    pr="88px"
+                    py={5}
+                    boxShadow="sm"
+                    _focus={{
+                      bg: "white",
+                      borderColor: "blue.400",
+                      boxShadow: "0 0 0 1px #3b82f6",
+                    }}
+                  />
+
+                  <InputRightElement width="84px" pr={2} display="flex" gap={1}>
+                    {/* Voice Note Recording Button */}
+                    <Tooltip label="Record Voice Note" hasArrow>
+                      <IconButton
+                        size="sm"
+                        variant="ghost"
+                        colorScheme="gray"
+                        borderRadius="full"
+                        icon={<i className="fa-solid fa-microphone" style={{ color: "#64748b" }}></i>}
+                        onClick={startRecording}
+                        aria-label="Record Audio"
+                      />
+                    </Tooltip>
+
+                    {/* Send Button */}
+                    <IconButton
+                      size="sm"
+                      colorScheme="blue"
+                      borderRadius="full"
+                      icon={<i className="fa-solid fa-paper-plane" style={{ color: "white" }}></i>}
+                      onClick={sendMessage}
+                      aria-label="Send Message"
+                      isDisabled={!newMessage.trim() && !attachedFile}
+                    />
+                  </InputRightElement>
+                </InputGroup>
+              </FormControl>
+            )}
           </Box>
         </>
       ) : (
+        /* Empty Conversation State */
         <Box
           display="flex"
           flexDir="column"
@@ -739,20 +921,20 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           color="gray.500"
         >
           <Box
-            fontSize="64px"
-            mb={4}
             p={6}
-            bg="purple.50"
+            bg="blue.50"
             borderRadius="full"
             boxShadow="inner"
+            mb={4}
+            color="blue.500"
           >
-            💬
+            <i className="fa-solid fa-comments" style={{ fontSize: "48px" }}></i>
           </Box>
-          <Text fontSize="2xl" fontWeight="800" color="gray.800" mb={2}>
-            Welcome to Chatt
+          <Text fontSize="2xl" fontWeight="700" fontFamily="Work sans" color="gray.800" mb={2}>
+            Chat-To-Talk
           </Text>
-          <Text fontSize="md" maxW="380px">
-            Select a conversation from the sidebar or search users to start real-time messaging!
+          <Text fontSize="md" maxW="360px" color="gray.500">
+            Select a conversation or search for users to start instant messaging!
           </Text>
         </Box>
       )}

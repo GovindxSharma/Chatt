@@ -59,13 +59,12 @@ const MyChats = ({ fetchAgain }) => {
       display={{ base: selectedChat ? "none" : "flex", md: "flex" }}
       flexDir="column"
       p={4}
-      bg="rgba(255, 255, 255, 0.9)"
-      backdropFilter="blur(16px)"
+      bg="white"
       w={{ base: "100%", md: "32%", lg: "30%" }}
       borderRadius="2xl"
       borderWidth="1px"
-      borderColor="whiteAlpha.400"
-      boxShadow="0 10px 30px rgba(0, 0, 0, 0.08)"
+      borderColor="gray.200"
+      boxShadow="sm"
       h="100%"
     >
       <Box
@@ -78,21 +77,26 @@ const MyChats = ({ fetchAgain }) => {
         borderBottom="1px solid"
         borderColor="gray.100"
       >
-        <Text fontSize={{ base: "xl", lg: "2xl" }} fontWeight="800" color="gray.800">
-          Messages
+        <Text
+          fontSize={{ base: "xl", lg: "2xl" }}
+          fontFamily="Work sans"
+          fontWeight="700"
+          color="gray.800"
+        >
+          My Chats
         </Text>
         <GroupChatModal>
           <Button
             size="sm"
-            colorScheme="purple"
+            colorScheme="blue"
             variant="solid"
             borderRadius="full"
             fontSize="12px"
             fontWeight="600"
             rightIcon={<AddIcon boxSize="9px" />}
-            boxShadow="0 4px 12px rgba(99, 102, 241, 0.3)"
+            boxShadow="sm"
           >
-            New Group
+            New Group Chat
           </Button>
         </GroupChatModal>
       </Box>
@@ -109,7 +113,9 @@ const MyChats = ({ fetchAgain }) => {
           <Stack overflowY="auto" spacing={2} pr={1}>
             {chats.length === 0 && (
               <Box textAlign="center" py={12} px={4} color="gray.500">
-                <Text fontSize="2xl" mb={2}>💬</Text>
+                <Box color="blue.400" mb={2}>
+                  <i className="fa-solid fa-comments" style={{ fontSize: "32px" }}></i>
+                </Box>
                 <Text fontWeight="600">No conversations yet</Text>
                 <Text fontSize="xs" mt={1}>Search users to start chatting!</Text>
               </Box>
@@ -127,8 +133,8 @@ const MyChats = ({ fetchAgain }) => {
                   cursor="pointer"
                   bg={
                     isSelected
-                      ? "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)"
-                      : "rgba(248, 250, 252, 0.85)"
+                      ? "linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)"
+                      : "#f8fafc"
                   }
                   color={isSelected ? "white" : "gray.800"}
                   px={3.5}
@@ -136,11 +142,11 @@ const MyChats = ({ fetchAgain }) => {
                   borderRadius="xl"
                   key={chat._id}
                   borderWidth="1px"
-                  borderColor={isSelected ? "purple.400" : "gray.200"}
-                  boxShadow={isSelected ? "0 4px 14px rgba(99, 102, 241, 0.35)" : "sm"}
+                  borderColor={isSelected ? "blue.400" : "gray.200"}
+                  boxShadow={isSelected ? "0 4px 12px rgba(59, 130, 246, 0.3)" : "none"}
                   _hover={{
+                    bg: isSelected ? undefined : "gray.100",
                     transform: isSelected ? "none" : "translateY(-1px)",
-                    boxShadow: "md",
                   }}
                   transition="all 0.15s ease"
                 >
@@ -153,7 +159,12 @@ const MyChats = ({ fetchAgain }) => {
                           : chat.chatName
                       }
                       src={senderUser?.pic}
-                      bg={chat.isGroupChat ? "purple.500" : undefined}
+                      bg={chat.isGroupChat ? "blue.500" : undefined}
+                      icon={
+                        chat.isGroupChat ? (
+                          <i className="fa-solid fa-users" style={{ fontSize: "12px", color: "white" }}></i>
+                        ) : undefined
+                      }
                     >
                       {!chat.isGroupChat && (
                         <AvatarBadge
@@ -206,8 +217,10 @@ const MyChats = ({ fetchAgain }) => {
                               ? "You: "
                               : `${chat.latestMessage.sender?.name?.split(" ")[0] || "User"}: `}
                           </span>
-                          {chat.latestMessage.fileUrl && !chat.latestMessage.content
-                            ? "📷 Attachment"
+                          {chat.latestMessage.fileType === "audio"
+                            ? "Voice note"
+                            : chat.latestMessage.fileUrl && !chat.latestMessage.content
+                            ? "Attachment"
                             : chat.latestMessage.content}
                         </Text>
                       ) : (

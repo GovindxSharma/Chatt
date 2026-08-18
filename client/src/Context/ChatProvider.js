@@ -65,22 +65,11 @@ const ChatProvider = ({ children }) => {
     const saved = localStorage.getItem("chatt_sound");
     return saved !== null ? JSON.parse(saved) : true;
   });
-  const [themeMode, setThemeMode] = useState(() => {
-    return localStorage.getItem("chatt_theme") || "light";
-  });
 
   const toggleSound = () => {
     setSoundEnabled((prev) => {
       const next = !prev;
       localStorage.setItem("chatt_sound", JSON.stringify(next));
-      return next;
-    });
-  };
-
-  const toggleThemeMode = () => {
-    setThemeMode((prev) => {
-      const next = prev === "light" ? "dark" : "light";
-      localStorage.setItem("chatt_theme", next);
       return next;
     });
   };
@@ -125,13 +114,11 @@ const ChatProvider = ({ children }) => {
         setOnlineUsers,
         soundEnabled,
         toggleSound,
-        themeMode,
-        toggleThemeMode,
         playNotificationSound,
         playSendSound,
       }}
     >
-      <div className={`theme-${themeMode}`} style={{ width: "100%", height: "100%" }}>
+      <div className="theme-light" style={{ width: "100%", height: "100%" }}>
         {children}
       </div>
     </ChatContext.Provider>

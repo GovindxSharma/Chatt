@@ -21,9 +21,15 @@ import {
   MenuButton,
   MenuList,
   MenuItem,
+  Badge,
 } from "@chakra-ui/react";
 import { ArrowBackIcon, CloseIcon } from "@chakra-ui/icons";
 import { getSenderFull, getSender } from "../../config/ChatLogics";
+import {
+  encryptText,
+  decryptMessagesList,
+  decryptMessageObject,
+} from "../../config/cryptoLogics";
 import ProfileModal from "../Miscellaneous/ProfileModal";
 import Lottie from "react-lottie";
 import animationData from "../../animations/typing.json";
@@ -97,7 +103,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
       : null;
   const isOtherUserOnline = otherUser && onlineUsers?.includes(otherUser._id);
 
-  // Fetch chat messages
+  // Fetch chat messages and decrypt client-side
   const fetchMessages = async () => {
     if (!selectedChat) return;
 
@@ -114,7 +120,10 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
         `/api/message/${selectedChat._id}`,
         config
       );
-      setMessages(data);
+
+      // Decrypt all messages with E2EE
+      const decryptedData = await decryptMessagesList(data, selectedChat._id);
+      setMessages(decryptedData);
       setLoading(false);
 
       if (socket) {
@@ -147,7 +156,6 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     data.append("upload_preset", "chat-app");
     data.append("cloud_name", "ddnwjdqbf");
 
-    // Cloudinary upload (auto resource type handles images, video, raw documents)
     const resourceType = isImage ? "image" : isAudio ? "video" : "auto";
 
     fetch(`https://api.cloudinary.com/v1_1/ddnwjdqbf/${resourceType}/upload`, {
@@ -204,7 +212,6 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           type: "audio/webm",
         });
         handleFileUpload(audioFile, "audio");
-        // Stop all audio tracks
         stream.getTracks().forEach((track) => track.stop());
       };
 
@@ -245,14 +252,13 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     }
   };
 
-  // Format recording duration timer (MM:SS)
   const formatDuration = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
 
-  // Send message
+  // Send E2EE encrypted message
   const sendMessage = async (event) => {
     if (
       (event?.key === "Enter" || event?.type === "click") &&
@@ -276,12 +282,19 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           },
         };
 
+        // Encrypt message content and filename with AES-256-GCM before sending
+        const textToEncrypt = contentToSend || (fileToSend ? fileToSend.name : "");
+        const encryptedContent = await encryptText(textToEncrypt, selectedChat._id);
+        const encryptedFileName = fileToSend?.name
+          ? await encryptText(fileToSend.name, selectedChat._id)
+          : "";
+
         const payload = {
-          content: contentToSend || (fileToSend ? fileToSend.name : ""),
+          content: encryptedContent,
           chatId: selectedChat._id,
           fileUrl: fileToSend?.url || "",
           fileType: fileToSend?.type || "",
-          fileName: fileToSend?.name || "",
+          fileName: encryptedFileName,
         };
 
         const { data } = await axios.post("/api/message", payload, config);
@@ -290,7 +303,10 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           socket.emit("new message", data);
         }
         playSendSound();
-        setMessages((prev) => [...prev, data]);
+
+        // Decrypt returned message for local state
+        const decryptedMsg = await decryptMessageObject(data, selectedChat._id);
+        setMessages((prev) => [...prev, decryptedMsg]);
         setFetchAgain(!fetchAgain);
       } catch (error) {
         toast({
@@ -321,8 +337,10 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
         config
       );
 
+      const decrypted = await decryptMessageObject(data, selectedChat._id);
+
       setMessages((prev) =>
-        prev.map((msg) => (msg._id === messageId ? data : msg))
+        prev.map((msg) => (msg._id === messageId ? decrypted : msg))
       );
 
       if (socket) {
@@ -423,33 +441,39 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     // eslint-disable-next-line
   }, [selectedChat]);
 
-  // Real-time socket event listeners
+  // Real-time socket listeners with E2EE decryption
   useEffect(() => {
-    const handleIncomingMessage = (newMessageReceived) => {
+    const handleIncomingMessage = async (newMessageReceived) => {
+      const decryptedMsg = await decryptMessageObject(
+        newMessageReceived,
+        newMessageReceived.chat._id
+      );
+
       if (
         !selectedChatCompare ||
         selectedChatCompare._id !== newMessageReceived.chat._id
       ) {
         if (!notification.some((n) => n._id === newMessageReceived._id)) {
-          setNotification([newMessageReceived, ...notification]);
+          setNotification([decryptedMsg, ...notification]);
           playNotificationSound();
           setFetchAgain(!fetchAgain);
         }
       } else {
-        setMessages((prev) => [...prev, newMessageReceived]);
+        setMessages((prev) => [...prev, decryptedMsg]);
         playNotificationSound();
       }
     };
 
-    const handleReactionUpdate = (data) => {
+    const handleReactionUpdate = async (data) => {
       if (
         selectedChatCompare &&
         selectedChatCompare._id === data.chatId &&
         data.message
       ) {
+        const decrypted = await decryptMessageObject(data.message, data.chatId);
         setMessages((prev) =>
           prev.map((msg) =>
-            msg._id === data.message._id ? data.message : msg
+            msg._id === data.message._id ? decrypted : msg
           )
         );
       }
@@ -516,7 +540,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     <>
       {selectedChat ? (
         <>
-          {/* Top Bar Header */}
+          {/* Top Bar Header with E2EE Badge */}
           <Box
             w="100%"
             pb={3}
@@ -560,16 +584,38 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
               )}
 
               <Box overflow="hidden">
-                <Text
-                  fontSize={{ base: "md", md: "lg" }}
-                  fontWeight="700"
-                  color="gray.800"
-                  isTruncated
-                >
-                  {!selectedChat.isGroupChat
-                    ? getSender(user, selectedChat.users)
-                    : selectedChat.chatName}
-                </Text>
+                <HStack spacing={2} align="center">
+                  <Text
+                    fontSize={{ base: "md", md: "lg" }}
+                    fontWeight="700"
+                    color="gray.800"
+                    isTruncated
+                  >
+                    {!selectedChat.isGroupChat
+                      ? getSender(user, selectedChat.users)
+                      : selectedChat.chatName}
+                  </Text>
+                  <Tooltip
+                    label="Messages and attachments are End-to-End Encrypted (AES-256). No one outside of this chat can read them."
+                    hasArrow
+                    placement="bottom"
+                  >
+                    <Badge
+                      colorScheme="blue"
+                      variant="subtle"
+                      borderRadius="full"
+                      px={2}
+                      py={0.5}
+                      fontSize="9px"
+                      display={{ base: "none", sm: "inline-flex" }}
+                      alignItems="center"
+                      gap={1}
+                    >
+                      <i className="fa-solid fa-lock" style={{ fontSize: "8px" }}></i>
+                      E2EE
+                    </Badge>
+                  </Tooltip>
+                </HStack>
                 <Text fontSize="10px" color="gray.500">
                   {!selectedChat.isGroupChat
                     ? isOtherUserOnline
@@ -722,7 +768,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                     {attachedFile.name}
                   </Text>
                   <Text fontSize="10px" color="gray.500">
-                    Ready to send
+                    Encrypted on send
                   </Text>
                 </Box>
                 <IconButton
@@ -747,7 +793,6 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
 
             {/* Bottom Input / Voice Recording Bar */}
             {isRecording ? (
-              /* Live Voice Recording UI */
               <Box
                 display="flex"
                 alignItems="center"
@@ -793,7 +838,6 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                 </HStack>
               </Box>
             ) : (
-              /* Standard Input Bar */
               <FormControl
                 onKeyDown={sendMessage}
                 id="message-input"
@@ -863,7 +907,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                   <Input
                     variant="filled"
                     bg="white"
-                    placeholder="Type a message..."
+                    placeholder="Type an encrypted message..."
                     value={newMessage}
                     onChange={typingHandler}
                     borderRadius="full"
@@ -909,7 +953,6 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           </Box>
         </>
       ) : (
-        /* Empty Conversation State */
         <Box
           display="flex"
           flexDir="column"
@@ -928,13 +971,19 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
             mb={4}
             color="blue.500"
           >
-            <i className="fa-solid fa-comments" style={{ fontSize: "48px" }}></i>
+            <i className="fa-solid fa-shield-halved" style={{ fontSize: "48px" }}></i>
           </Box>
-          <Text fontSize="2xl" fontWeight="700" fontFamily="Work sans" color="gray.800" mb={2}>
+          <Text fontSize="2xl" fontWeight="700" fontFamily="Work sans" color="gray.800" mb={1}>
             Chat-To-Talk
           </Text>
-          <Text fontSize="md" maxW="360px" color="gray.500">
-            Select a conversation or search for users to start instant messaging!
+          <HStack justify="center" spacing={1} mb={3} color="blue.600">
+            <i className="fa-solid fa-lock" style={{ fontSize: "12px" }}></i>
+            <Text fontSize="xs" fontWeight="700" letterSpacing="wide">
+              END-TO-END ENCRYPTED
+            </Text>
+          </HStack>
+          <Text fontSize="sm" maxW="360px" color="gray.500">
+            Your personal messages and audio notes are secured with AES-256-GCM encryption.
           </Text>
         </Box>
       )}

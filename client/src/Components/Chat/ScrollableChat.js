@@ -342,7 +342,7 @@ const ScrollableChat = ({ messages, handleReaction, handleDeleteMessage }) => {
                     </Text>
                   )}
 
-                  {/* Timestamp & Delivery Checkmark */}
+                  {/* Timestamp & Delivery Checkmark & E2EE Indicator */}
                   <Box
                     display="flex"
                     justifyContent="flex-end"
@@ -350,6 +350,15 @@ const ScrollableChat = ({ messages, handleReaction, handleDeleteMessage }) => {
                     gap={1}
                     mt={1}
                   >
+                    <i
+                      className="fa-solid fa-lock"
+                      style={{
+                        fontSize: "7px",
+                        opacity: isSender ? 0.7 : 0.4,
+                        color: isSender ? "white" : "#64748b",
+                      }}
+                      title="End-to-End Encrypted"
+                    ></i>
                     <Text
                       fontSize="9px"
                       color={isSender ? "whiteAlpha.800" : "gray.400"}

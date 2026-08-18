@@ -14,11 +14,13 @@ import {
 import { AddIcon } from "@chakra-ui/icons";
 import ChatLoading from "./ChatLoading";
 import { getSender, getSenderFull, formatMessageTime } from "../../config/ChatLogics";
+import { decryptText } from "../../config/cryptoLogics";
 import GroupChatModal from "../Miscellaneous/GroupChatModal.js";
 
 const MyChats = ({ fetchAgain }) => {
   const toast = useToast();
   const [loggedUser, setLoggedUser] = useState(null);
+  const [decryptedPreviews, setDecryptedPreviews] = useState({});
   const { selectedChat, setSelectedChat, user, chats, setChats, onlineUsers } =
     ChatState();
 
@@ -33,6 +35,20 @@ const MyChats = ({ fetchAgain }) => {
 
       const { data } = await axios.get("/api/chat", config);
       setChats(data);
+
+      // Decrypt latest message preview text for each chat
+      const previews = {};
+      await Promise.all(
+        data.map(async (chat) => {
+          if (chat.latestMessage && chat.latestMessage.content) {
+            previews[chat._id] = await decryptText(
+              chat.latestMessage.content,
+              chat._id
+            );
+          }
+        })
+      );
+      setDecryptedPreviews(previews);
     } catch (error) {
       toast({
         title: "Error Occurred!",
@@ -127,6 +143,11 @@ const MyChats = ({ fetchAgain }) => {
                 : null;
               const isOnline = senderUser && onlineUsers?.includes(senderUser._id);
 
+              const previewText =
+                decryptedPreviews[chat._id] ||
+                chat.latestMessage?.content ||
+                "";
+
               return (
                 <Box
                   onClick={() => setSelectedChat(chat)}
@@ -219,9 +240,9 @@ const MyChats = ({ fetchAgain }) => {
                           </span>
                           {chat.latestMessage.fileType === "audio"
                             ? "Voice note"
-                            : chat.latestMessage.fileUrl && !chat.latestMessage.content
+                            : chat.latestMessage.fileUrl && !previewText
                             ? "Attachment"
-                            : chat.latestMessage.content}
+                            : previewText}
                         </Text>
                       ) : (
                         <Text

@@ -14,14 +14,14 @@ const UserBadgeItem = ({ user, handleFunction, admin }) => {
       mb={1.5}
       variant="solid"
       fontSize="12px"
-      bg="linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)"
+      bg="blue.600"
       color="white"
       cursor="pointer"
       display="inline-flex"
       alignItems="center"
       gap={1.5}
-      boxShadow="0 2px 4px rgba(99, 102, 241, 0.3)"
-      _hover={{ opacity: 0.9, transform: "scale(1.03)" }}
+      boxShadow="sm"
+      _hover={{ bg: "blue.700", transform: "scale(1.02)" }}
       transition="all 0.15s ease"
     >
       <span>{user.name}</span>

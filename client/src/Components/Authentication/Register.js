@@ -5,14 +5,17 @@ import {
   FormLabel,
   Input,
   InputGroup,
+  InputLeftElement,
   InputRightElement,
   VStack,
   useToast,
 } from "@chakra-ui/react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { ChatState } from "../../Context/ChatProvider";
 
 const Register = () => {
+  const { isDark } = ChatState() || {};
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -150,54 +153,103 @@ const Register = () => {
   };
 
   return (
-    <VStack spacing={2.5}>
-      <FormControl id="name" isRequired>
-        <FormLabel fontSize="xs" fontWeight="600" mb={1}>
+    <VStack spacing={3} as="form" onSubmit={(e) => { e.preventDefault(); submitHandler(); }}>
+      <FormControl id="register-name" isRequired>
+        <FormLabel fontSize="xs" fontWeight="700" color={isDark ? "gray.200" : "gray.700"} mb={1}>
           Name
         </FormLabel>
-        <Input
-          placeholder="Enter Your Name"
-          onChange={(e) => setName(e.target.value)}
-          value={name}
-          borderRadius="xl"
-        />
+        <InputGroup>
+          <InputLeftElement pointerEvents="none" color={isDark ? "gray.400" : "gray.400"}>
+            <i className="fa-solid fa-user" style={{ fontSize: "13px" }}></i>
+          </InputLeftElement>
+          <Input
+            placeholder="Your display name"
+            onChange={(e) => setName(e.target.value)}
+            value={name}
+            borderRadius="xl"
+            bg={isDark ? "gray.800" : "gray.50"}
+            color={isDark ? "white" : "gray.900"}
+            borderWidth="1px"
+            borderColor={isDark ? "gray.700" : "gray.200"}
+            _focus={{ bg: isDark ? "gray.800" : "white", borderColor: "blue.500", boxShadow: "0 0 0 1px #3b82f6" }}
+            _placeholder={{ color: isDark ? "gray.500" : "gray.400" }}
+            aria-label="Name"
+          />
+        </InputGroup>
       </FormControl>
 
-      <FormControl id="email" isRequired>
-        <FormLabel fontSize="xs" fontWeight="600" mb={1}>
+      <FormControl id="register-email" isRequired>
+        <FormLabel fontSize="xs" fontWeight="700" color={isDark ? "gray.200" : "gray.700"} mb={1}>
           Email Address
         </FormLabel>
-        <Input
-          placeholder="Enter Your Email"
-          onChange={(e) => setEmail(e.target.value)}
-          value={email}
-          borderRadius="xl"
-        />
+        <InputGroup>
+          <InputLeftElement pointerEvents="none" color={isDark ? "gray.400" : "gray.400"}>
+            <i className="fa-solid fa-envelope" style={{ fontSize: "13px" }}></i>
+          </InputLeftElement>
+          <Input
+            type="email"
+            placeholder="name@example.com"
+            onChange={(e) => setEmail(e.target.value)}
+            value={email}
+            borderRadius="xl"
+            bg={isDark ? "gray.800" : "gray.50"}
+            color={isDark ? "white" : "gray.900"}
+            borderWidth="1px"
+            borderColor={isDark ? "gray.700" : "gray.200"}
+            _focus={{ bg: isDark ? "gray.800" : "white", borderColor: "blue.500", boxShadow: "0 0 0 1px #3b82f6" }}
+            _placeholder={{ color: isDark ? "gray.500" : "gray.400" }}
+            aria-label="Email Address"
+            autoComplete="email"
+          />
+        </InputGroup>
       </FormControl>
 
-      <FormControl id="bio">
-        <FormLabel fontSize="xs" fontWeight="600" mb={1}>
+      <FormControl id="register-bio">
+        <FormLabel fontSize="xs" fontWeight="700" color={isDark ? "gray.200" : "gray.700"} mb={1}>
           Bio / Status (Optional)
         </FormLabel>
-        <Input
-          placeholder="Status message..."
-          onChange={(e) => setBio(e.target.value)}
-          value={bio}
-          borderRadius="xl"
-        />
+        <InputGroup>
+          <InputLeftElement pointerEvents="none" color={isDark ? "gray.400" : "gray.400"}>
+            <i className="fa-solid fa-pen-fancy" style={{ fontSize: "13px" }}></i>
+          </InputLeftElement>
+          <Input
+            placeholder="Status or quote..."
+            onChange={(e) => setBio(e.target.value)}
+            value={bio}
+            borderRadius="xl"
+            bg={isDark ? "gray.800" : "gray.50"}
+            color={isDark ? "white" : "gray.900"}
+            borderWidth="1px"
+            borderColor={isDark ? "gray.700" : "gray.200"}
+            _focus={{ bg: isDark ? "gray.800" : "white", borderColor: "blue.500", boxShadow: "0 0 0 1px #3b82f6" }}
+            _placeholder={{ color: isDark ? "gray.500" : "gray.400" }}
+            aria-label="Bio or status"
+          />
+        </InputGroup>
       </FormControl>
 
-      <FormControl id="password" isRequired>
-        <FormLabel fontSize="xs" fontWeight="600" mb={1}>
+      <FormControl id="register-password" isRequired>
+        <FormLabel fontSize="xs" fontWeight="700" color={isDark ? "gray.200" : "gray.700"} mb={1}>
           Password
         </FormLabel>
         <InputGroup>
+          <InputLeftElement pointerEvents="none" color={isDark ? "gray.400" : "gray.400"}>
+            <i className="fa-solid fa-lock" style={{ fontSize: "13px" }}></i>
+          </InputLeftElement>
           <Input
             type={show ? "text" : "password"}
-            placeholder="Enter Password"
+            placeholder="Create password"
             onChange={(e) => setPassword(e.target.value)}
             value={password}
             borderRadius="xl"
+            bg={isDark ? "gray.800" : "gray.50"}
+            color={isDark ? "white" : "gray.900"}
+            borderWidth="1px"
+            borderColor={isDark ? "gray.700" : "gray.200"}
+            _focus={{ bg: isDark ? "gray.800" : "white", borderColor: "blue.500", boxShadow: "0 0 0 1px #3b82f6" }}
+            _placeholder={{ color: isDark ? "gray.500" : "gray.400" }}
+            aria-label="Password"
+            autoComplete="new-password"
           />
           <InputRightElement width="4.5rem">
             <Button
@@ -206,6 +258,9 @@ const Register = () => {
               onClick={handleClick}
               borderRadius="md"
               variant="ghost"
+              aria-label={show ? "Hide password" : "Show password"}
+              fontWeight="600"
+              color={isDark ? "gray.300" : "gray.600"}
             >
               {show ? "Hide" : "Show"}
             </Button>
@@ -213,17 +268,28 @@ const Register = () => {
         </InputGroup>
       </FormControl>
 
-      <FormControl id="confirmPassword" isRequired>
-        <FormLabel fontSize="xs" fontWeight="600" mb={1}>
+      <FormControl id="register-confirm-password" isRequired>
+        <FormLabel fontSize="xs" fontWeight="700" color={isDark ? "gray.200" : "gray.700"} mb={1}>
           Confirm Password
         </FormLabel>
         <InputGroup>
+          <InputLeftElement pointerEvents="none" color={isDark ? "gray.400" : "gray.400"}>
+            <i className="fa-solid fa-shield-check" style={{ fontSize: "13px" }}></i>
+          </InputLeftElement>
           <Input
             type={show ? "text" : "password"}
-            placeholder="Confirm Password"
+            placeholder="Re-enter password"
             onChange={(e) => setConfirmPassword(e.target.value)}
             value={confirmPassword}
             borderRadius="xl"
+            bg={isDark ? "gray.800" : "gray.50"}
+            color={isDark ? "white" : "gray.900"}
+            borderWidth="1px"
+            borderColor={isDark ? "gray.700" : "gray.200"}
+            _focus={{ bg: isDark ? "gray.800" : "white", borderColor: "blue.500", boxShadow: "0 0 0 1px #3b82f6" }}
+            _placeholder={{ color: isDark ? "gray.500" : "gray.400" }}
+            aria-label="Confirm Password"
+            autoComplete="new-password"
           />
           <InputRightElement width="4.5rem">
             <Button
@@ -232,6 +298,9 @@ const Register = () => {
               onClick={handleClick}
               borderRadius="md"
               variant="ghost"
+              aria-label={show ? "Hide password" : "Show password"}
+              fontWeight="600"
+              color={isDark ? "gray.300" : "gray.600"}
             >
               {show ? "Hide" : "Show"}
             </Button>
@@ -239,29 +308,40 @@ const Register = () => {
         </InputGroup>
       </FormControl>
 
-      <FormControl id="pic">
-        <FormLabel fontSize="xs" fontWeight="600" mb={1}>
-          Upload Your Picture
+      <FormControl id="register-pic">
+        <FormLabel fontSize="xs" fontWeight="700" color={isDark ? "gray.200" : "gray.700"} mb={1}>
+          Avatar / Profile Picture (Optional)
         </FormLabel>
         <Input
           type="file"
           p={1}
           accept="image/*"
           borderRadius="xl"
+          bg={isDark ? "gray.800" : "gray.50"}
+          color={isDark ? "white" : "gray.900"}
+          borderWidth="1px"
+          borderColor={isDark ? "gray.700" : "gray.200"}
+          aria-label="Upload profile picture"
           onChange={(e) => postDetails(e.target.files[0])}
         />
       </FormControl>
 
       <Button
+        type="submit"
         colorScheme="blue"
+        bg="blue.600"
+        _hover={{ bg: "blue.700" }}
         width="100%"
-        style={{ marginTop: 10 }}
+        style={{ marginTop: 12 }}
         onClick={submitHandler}
         isLoading={loading || uploadingPic}
         borderRadius="xl"
-        py={5}
+        py={6}
+        fontSize="sm"
+        fontWeight="600"
+        boxShadow="sm"
       >
-        Register
+        Create Chatt Account
       </Button>
     </VStack>
   );

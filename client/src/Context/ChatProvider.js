@@ -66,6 +66,39 @@ const ChatProvider = ({ children }) => {
     return saved !== null ? JSON.parse(saved) : true;
   });
 
+  // Dark & Light Theme State
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem("chatt_theme");
+    if (saved === "dark" || saved === "light") return saved;
+    // System preference fallback
+    if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      return "dark";
+    }
+    return "light";
+  });
+
+  const isDark = theme === "dark";
+
+  // Sync theme to document body and HTML
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    if (isDark) {
+      document.body.classList.add("chakra-ui-dark");
+      document.body.classList.remove("chakra-ui-light");
+    } else {
+      document.body.classList.add("chakra-ui-light");
+      document.body.classList.remove("chakra-ui-dark");
+    }
+  }, [theme, isDark]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => {
+      const next = prev === "dark" ? "light" : "dark";
+      localStorage.setItem("chatt_theme", next);
+      return next;
+    });
+  };
+
   const toggleSound = () => {
     setSoundEnabled((prev) => {
       const next = !prev;
@@ -116,9 +149,16 @@ const ChatProvider = ({ children }) => {
         toggleSound,
         playNotificationSound,
         playSendSound,
+        theme,
+        isDark,
+        toggleTheme,
       }}
     >
-      <div className="theme-light" style={{ width: "100%", height: "100%" }}>
+      <div
+        className={isDark ? "theme-dark" : "theme-light"}
+        data-theme={theme}
+        style={{ width: "100%", height: "100%" }}
+      >
         {children}
       </div>
     </ChatContext.Provider>

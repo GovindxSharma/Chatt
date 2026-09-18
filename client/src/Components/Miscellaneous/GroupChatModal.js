@@ -21,11 +21,19 @@ import axios from "axios";
 import UserListItem from "../UserAvatar/UserListItem";
 import UserBadgeItem from "../UserAvatar/UserBadgeItem";
 
-const GroupChatModal = ({ children }) => {
+const GroupChatModal = ({
+  children,
+  isOpen: externalIsOpen,
+  onClose: externalOnClose,
+}) => {
   const toast = useToast();
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const internalDisclosure = useDisclosure();
+  const isControlled = externalIsOpen !== undefined;
+  const isOpen = isControlled ? externalIsOpen : internalDisclosure.isOpen;
+  const onOpen = internalDisclosure.onOpen;
+  const onClose = isControlled ? externalOnClose : internalDisclosure.onClose;
 
-  const { user, chats, setChats, setSelectedChat } = ChatState();
+  const { user, chats, setChats, setSelectedChat, isDark } = ChatState();
 
   const [groupChatName, setGroupChatName] = useState("");
   const [selectedUsers, setSelectedUsers] = useState([]);
@@ -152,20 +160,29 @@ const GroupChatModal = ({ children }) => {
 
   return (
     <>
-      <span onClick={onOpen}>{children}</span>
+      {children && <span onClick={onOpen}>{children}</span>}
 
       <Modal isOpen={isOpen} onClose={onClose} isCentered size="lg">
         <ModalOverlay backdropFilter="blur(6px)" bg="blackAlpha.600" />
-        <ModalContent borderRadius="2xl" overflow="hidden" boxShadow="2xl" mx={4}>
+        <ModalContent
+          borderRadius="2xl"
+          overflow="hidden"
+          boxShadow="2xl"
+          borderWidth="1px"
+          borderColor={isDark ? "gray.700" : "gray.200"}
+          bg={isDark ? "gray.800" : "white"}
+          color={isDark ? "gray.100" : "gray.800"}
+          mx={4}
+        >
           <ModalHeader
-            fontSize="20px"
-            fontFamily="Work sans"
+            fontSize="18px"
+            fontFamily="Outfit, sans-serif"
             fontWeight="700"
             display="flex"
             justifyContent="center"
             alignItems="center"
-            gap={2}
-            bg="linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)"
+            gap={2.5}
+            bg="blue.600"
             color="white"
             py={4}
           >
@@ -173,9 +190,9 @@ const GroupChatModal = ({ children }) => {
             Create Group Chat
           </ModalHeader>
           <ModalCloseButton color="white" />
-          <ModalBody display="flex" flexDir="column" p={6}>
+          <ModalBody display="flex" flexDir="column" p={6} bg={isDark ? "gray.800" : "white"}>
             <FormControl mb={3} isRequired>
-              <Text fontSize="xs" fontWeight="700" color="gray.600" mb={1} textTransform="uppercase">
+              <Text fontSize="xs" fontWeight="700" color={isDark ? "gray.300" : "gray.600"} mb={1} textTransform="uppercase">
                 Group Name
               </Text>
               <Input
@@ -183,11 +200,14 @@ const GroupChatModal = ({ children }) => {
                 value={groupChatName}
                 onChange={(e) => setGroupChatName(e.target.value)}
                 borderRadius="xl"
+                bg={isDark ? "gray.700" : "white"}
+                color={isDark ? "white" : "gray.900"}
+                borderColor={isDark ? "gray.600" : "gray.200"}
               />
             </FormControl>
 
             <FormControl mb={3}>
-              <Text fontSize="xs" fontWeight="700" color="gray.600" mb={1} textTransform="uppercase">
+              <Text fontSize="xs" fontWeight="700" color={isDark ? "gray.300" : "gray.600"} mb={1} textTransform="uppercase">
                 Add Users
               </Text>
               <Input
@@ -195,11 +215,14 @@ const GroupChatModal = ({ children }) => {
                 value={search}
                 onChange={(e) => handleSearch(e.target.value)}
                 borderRadius="xl"
+                bg={isDark ? "gray.700" : "white"}
+                color={isDark ? "white" : "gray.900"}
+                borderColor={isDark ? "gray.600" : "gray.200"}
               />
             </FormControl>
 
             {selectedUsers.length > 0 && (
-              <Box w="100%" display="flex" flexWrap="wrap" mb={3} p={2} bg="blue.50" borderRadius="xl">
+              <Box w="100%" display="flex" flexWrap="wrap" mb={3} p={2} bg={isDark ? "rgba(37, 99, 235, 0.18)" : "blue.50"} borderRadius="xl">
                 {selectedUsers.map((u) => (
                   <UserBadgeItem
                     key={u._id}
@@ -226,8 +249,8 @@ const GroupChatModal = ({ children }) => {
               )}
             </Box>
           </ModalBody>
-          <ModalFooter bg="gray.50" px={6} py={4}>
-            <Button variant="ghost" mr={3} onClick={onClose} borderRadius="lg">
+          <ModalFooter bg={isDark ? "gray.900" : "gray.50"} borderColor={isDark ? "gray.700" : "gray.200"} borderTopWidth="1px" px={6} py={4}>
+            <Button variant="ghost" mr={3} onClick={onClose} borderRadius="lg" color={isDark ? "gray.300" : "gray.600"}>
               Cancel
             </Button>
             <Button

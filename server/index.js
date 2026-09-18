@@ -67,6 +67,18 @@ const server = app.listen(PORT, () => {
   console.log(`🩺 Health check available at: http://localhost:${PORT}/health`);
 });
 
+server.on("error", (error) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(`\n❌ Error: Port ${PORT} is already in use.`);
+    console.error(`👉 On macOS, Port 5000 is commonly used by AirPlay Receiver.`);
+    console.error(`   To free Port 5000: Open System Settings > General > AirDrop & AirPlay > Turn OFF "AirPlay Receiver".`);
+    console.error(`   Or set PORT=5001 in your .env file.\n`);
+    process.exit(1);
+  } else {
+    console.error("❌ Server error:", error);
+  }
+});
+
 //------------------------------SOCKET.IO REALTIME------------------------//
 const SOCKET_URL = process.env.URL || "*";
 const io = require("socket.io")(server, {

@@ -33,7 +33,7 @@ const ProfileModal = ({ user: profileUser, children, isOpen: externalIsOpen, onC
   const onOpen = internalDisclosure.onOpen;
   const onClose = externalOnClose !== undefined ? externalOnClose : internalDisclosure.onClose;
 
-  const { user: currentUser, setUser: setCurrentUser, onlineUsers } = ChatState();
+  const { user: currentUser, setUser: setCurrentUser, onlineUsers, isDark } = ChatState();
   const toast = useToast();
 
   const isSelf = currentUser?._id === profileUser?._id;
@@ -41,14 +41,14 @@ const ProfileModal = ({ user: profileUser, children, isOpen: externalIsOpen, onC
 
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(profileUser?.name || "");
-  const [bio, setBio] = useState(profileUser?.bio || "Hey there! I am using Chat-To-Talk.");
+  const [bio, setBio] = useState(profileUser?.bio || "Hey there! I am using Chatt.");
   const [status, setStatus] = useState(profileUser?.status || "Available");
   const [pic, setPic] = useState(profileUser?.pic || "");
   const [loading, setLoading] = useState(false);
 
   const handleOpen = () => {
     setName(profileUser?.name || "");
-    setBio(profileUser?.bio || "Hey there! I am using Chat-To-Talk.");
+    setBio(profileUser?.bio || "Hey there! I am using Chatt.");
     setStatus(profileUser?.status || "Available");
     setPic(profileUser?.pic || "");
     setIsEditing(false);
@@ -176,11 +176,13 @@ const ProfileModal = ({ user: profileUser, children, isOpen: externalIsOpen, onC
           overflow="hidden"
           boxShadow="2xl"
           borderWidth="1px"
-          borderColor="gray.100"
+          borderColor={isDark ? "gray.700" : "gray.100"}
+          bg={isDark ? "gray.800" : "white"}
+          color={isDark ? "gray.100" : "gray.800"}
           mx={4}
         >
           <Box
-            bg="linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)"
+            bg="blue.600"
             p={6}
             textAlign="center"
             color="white"
@@ -206,7 +208,7 @@ const ProfileModal = ({ user: profileUser, children, isOpen: externalIsOpen, onC
                 className={isOnline ? "online-dot" : "offline-dot"}
               />
             </Box>
-            <ModalHeader fontSize="22px" fontWeight="700" p={0} mt={3} color="white">
+            <ModalHeader fontSize="20px" fontFamily="Outfit, sans-serif" fontWeight="700" p={0} mt={3} color="white">
               {isEditing ? "Edit Profile" : profileUser?.name}
             </ModalHeader>
             <HStack justify="center" spacing={2} mt={1}>
@@ -227,62 +229,74 @@ const ProfileModal = ({ user: profileUser, children, isOpen: externalIsOpen, onC
             </HStack>
           </Box>
 
-          <ModalBody p={6}>
+          <ModalBody p={6} bg={isDark ? "gray.800" : "white"}>
             {isEditing ? (
               <VStack spacing={4} align="stretch">
                 <FormControl id="name" isRequired>
-                  <FormLabel fontSize="sm" fontWeight="600">Display Name</FormLabel>
+                  <FormLabel fontSize="sm" fontWeight="600" color={isDark ? "gray.200" : "gray.700"}>Display Name</FormLabel>
                   <Input
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="Enter your name"
                     borderRadius="lg"
+                    bg={isDark ? "gray.700" : "white"}
+                    color={isDark ? "white" : "gray.900"}
+                    borderColor={isDark ? "gray.600" : "gray.200"}
                   />
                 </FormControl>
                 <FormControl id="bio">
-                  <FormLabel fontSize="sm" fontWeight="600">Bio / About</FormLabel>
+                  <FormLabel fontSize="sm" fontWeight="600" color={isDark ? "gray.200" : "gray.700"}>Bio / About</FormLabel>
                   <Input
                     value={bio}
                     onChange={(e) => setBio(e.target.value)}
                     placeholder="Status / Bio..."
                     borderRadius="lg"
+                    bg={isDark ? "gray.700" : "white"}
+                    color={isDark ? "white" : "gray.900"}
+                    borderColor={isDark ? "gray.600" : "gray.200"}
                   />
                 </FormControl>
                 <FormControl id="status">
-                  <FormLabel fontSize="sm" fontWeight="600">Status</FormLabel>
+                  <FormLabel fontSize="sm" fontWeight="600" color={isDark ? "gray.200" : "gray.700"}>Status</FormLabel>
                   <Input
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
                     placeholder="Available, Busy, Away..."
                     borderRadius="lg"
+                    bg={isDark ? "gray.700" : "white"}
+                    color={isDark ? "white" : "gray.900"}
+                    borderColor={isDark ? "gray.600" : "gray.200"}
                   />
                 </FormControl>
                 <FormControl id="pic">
-                  <FormLabel fontSize="sm" fontWeight="600">Change Picture</FormLabel>
+                  <FormLabel fontSize="sm" fontWeight="600" color={isDark ? "gray.200" : "gray.700"}>Change Picture</FormLabel>
                   <Input
                     type="file"
                     accept="image/*"
                     p={1}
                     borderRadius="lg"
+                    bg={isDark ? "gray.700" : "white"}
+                    color={isDark ? "white" : "gray.900"}
+                    borderColor={isDark ? "gray.600" : "gray.200"}
                     onChange={(e) => uploadImage(e.target.files[0])}
                   />
                 </FormControl>
               </VStack>
             ) : (
               <VStack spacing={3} align="stretch">
-                <Box p={3.5} bg="gray.50" borderRadius="xl">
-                  <Text fontSize="xs" fontWeight="700" color="gray.500" textTransform="uppercase">
+                <Box p={3.5} bg={isDark ? "gray.700" : "gray.50"} borderRadius="xl">
+                  <Text fontSize="xs" fontWeight="700" color={isDark ? "gray.400" : "gray.500"} textTransform="uppercase">
                     Email Address
                   </Text>
-                  <Text fontSize="md" fontWeight="600" color="gray.800">
+                  <Text fontSize="md" fontWeight="600" color={isDark ? "white" : "gray.800"}>
                     {profileUser?.email}
                   </Text>
                 </Box>
-                <Box p={3.5} bg="gray.50" borderRadius="xl">
-                  <Text fontSize="xs" fontWeight="700" color="gray.500" textTransform="uppercase">
+                <Box p={3.5} bg={isDark ? "gray.700" : "gray.50"} borderRadius="xl">
+                  <Text fontSize="xs" fontWeight="700" color={isDark ? "gray.400" : "gray.500"} textTransform="uppercase">
                     About / Bio
                   </Text>
-                  <Text fontSize="sm" color="gray.700">
+                  <Text fontSize="sm" color={isDark ? "gray.200" : "gray.700"}>
                     {profileUser?.bio || "Hey there! I am using Chat-To-Talk."}
                   </Text>
                 </Box>
@@ -290,7 +304,7 @@ const ProfileModal = ({ user: profileUser, children, isOpen: externalIsOpen, onC
             )}
           </ModalBody>
 
-          <ModalFooter bg="gray.50" px={6} py={4} display="flex" justifyContent="space-between">
+          <ModalFooter bg={isDark ? "gray.900" : "gray.50"} borderColor={isDark ? "gray.700" : "gray.200"} borderTopWidth="1px" px={6} py={4} display="flex" justifyContent="space-between">
             {isSelf && (
               <>
                 {isEditing ? (
@@ -300,6 +314,7 @@ const ProfileModal = ({ user: profileUser, children, isOpen: externalIsOpen, onC
                       onClick={() => setIsEditing(false)}
                       leftIcon={<CloseIcon boxSize="10px" />}
                       borderRadius="lg"
+                      color={isDark ? "gray.300" : "gray.600"}
                     >
                       Cancel
                     </Button>
@@ -327,7 +342,7 @@ const ProfileModal = ({ user: profileUser, children, isOpen: externalIsOpen, onC
               </>
             )}
             {!isEditing && (
-              <Button colorScheme="gray" onClick={onClose} borderRadius="lg" ml="auto">
+              <Button colorScheme={isDark ? "whiteAlpha" : "gray"} onClick={onClose} borderRadius="lg" ml="auto">
                 Close
               </Button>
             )}

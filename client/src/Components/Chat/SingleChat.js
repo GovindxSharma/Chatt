@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { ChatState } from "../../Context/ChatProvider";
 import {
   Box,
@@ -12,6 +12,8 @@ import {
   Avatar,
   AvatarBadge,
   HStack,
+  Wrap,
+  WrapItem,
   InputGroup,
   InputRightElement,
   InputLeftElement,
@@ -21,6 +23,7 @@ import {
   MenuButton,
   MenuList,
   MenuItem,
+  MenuDivider,
   Badge,
   Modal,
   ModalOverlay,
@@ -38,12 +41,13 @@ import {
   decryptMessageObject,
 } from "../../config/cryptoLogics";
 import ProfileModal from "../Miscellaneous/ProfileModal";
-import Lottie from "react-lottie";
-import animationData from "../../animations/typing.json";
+import TypingDots from "../../animations/TypingDots";
 import axios from "axios";
 import io from "socket.io-client";
 import ScrollableChat from "../Chat/ScrollableChat.js";
+import MessageLoading from "./MessageLoading.js";
 import UpdateGroupChatModal from "../Miscellaneous/UpdateGroupChatModal.js";
+import { getCachedMessages, setCachedMessages } from "../../utils/cacheUtils";
 import "./style.css";
 
 const getEndpoint = () => {
@@ -53,7 +57,7 @@ const getEndpoint = () => {
   if (process.env.NODE_ENV === "production") {
     return window.location.origin;
   }
-  return "http://localhost:5000";
+  return "http://localhost:5001";
 };
 
 const ENDPOINT = getEndpoint();
@@ -78,6 +82,8 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const [inChatFilter, setInChatFilter] = useState("all");
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
 
   // Replying & Editing states
   const [replyingMessage, setReplyingMessage] = useState(null);
@@ -113,14 +119,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
 
   const toast = useToast();
 
-  const defaultOptions = {
-    loop: true,
-    autoplay: true,
-    animationData: animationData,
-    rendererSettings: {
-      preserveAspectRatio: "xMidYMid slice",
-    },
-  };
+
 
   const {
     selectedChat,
@@ -132,6 +131,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     setOnlineUsers,
     playNotificationSound,
     playSendSound,
+    isDark,
   } = ChatState();
 
   const otherUser =
@@ -143,9 +143,18 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
   // Pinned messages list
   const pinnedMessages = messages.filter((m) => m.isPinned && !m.isDeleted);
 
-  // Fetch chat messages and decrypt client-side
+  // Fetch chat messages and decrypt client-side (with Stale-While-Revalidate caching)
   const fetchMessages = async () => {
     if (!selectedChat) return;
+
+    // 1. Instant Cache retrieval: show cached messages immediately
+    const cached = getCachedMessages(selectedChat._id);
+    if (cached && Array.isArray(cached) && cached.length > 0) {
+      setMessages(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
 
     try {
       const config = {
@@ -153,8 +162,6 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           Authorization: `Bearer ${user.token}`,
         },
       };
-
-      setLoading(true);
 
       const { data } = await axios.get(
         `/api/message/${selectedChat._id}`,
@@ -164,6 +171,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
       const decryptedData = await decryptMessagesList(data, selectedChat._id);
       setMessages(decryptedData);
       setLoading(false);
+      setCachedMessages(selectedChat._id, decryptedData);
 
       if (socket) {
         socket.emit("join chat", selectedChat._id);
@@ -195,6 +203,17 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     } else {
       setShowScrollBottom(false);
     }
+  };
+
+  // Quick Conversation Starter helper
+  const handleQuickStarter = (text) => {
+    setNewMessage(text);
+    setTimeout(() => {
+      const inputEl = document.querySelector("#message-input input") || document.getElementById("message-input");
+      if (inputEl) {
+        inputEl.focus();
+      }
+    }, 50);
   };
 
   // Upload file or image
@@ -595,8 +614,32 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     }
   };
 
-  // React to a message
+  // React to a message (instant optimistic UI update)
   const handleReaction = async (messageId, emoji) => {
+    // 1. Instantly update local state optimistically
+    setMessages((prev) =>
+      prev.map((msg) => {
+        if (msg._id !== messageId) return msg;
+        const currentReactions = msg.reactions || [];
+        const existingIdx = currentReactions.findIndex(
+          (r) => (r.user?._id === user?._id || r.user === user?._id) && r.emoji === emoji
+        );
+        let updatedReactions;
+        if (existingIdx >= 0) {
+          // Toggle off
+          updatedReactions = currentReactions.filter((_, idx) => idx !== existingIdx);
+        } else {
+          // Add new reaction
+          updatedReactions = [
+            ...currentReactions,
+            { emoji, user: { _id: user._id, name: user.name, pic: user.pic } },
+          ];
+        }
+        return { ...msg, reactions: updatedReactions };
+      })
+    );
+
+    // 2. Perform backend update and socket sync
     try {
       const config = {
         headers: {
@@ -624,12 +667,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
         });
       }
     } catch (error) {
-      toast({
-        title: "Reaction Failed",
-        status: "warning",
-        duration: 2000,
-        isClosable: true,
-      });
+      console.error("Reaction sync error:", error);
     }
   };
 
@@ -836,11 +874,55 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
     }, timerLength);
   };
 
-  const filteredMessages = searchQuery.trim()
-    ? messages.filter((m) =>
-        m.content?.toLowerCase().includes(searchQuery.toLowerCase().trim())
-      )
-    : messages;
+  const filteredMessages = useMemo(() => {
+    let list = messages;
+
+    if (inChatFilter === "voice") {
+      list = list.filter((m) => m.fileType === "audio" && !m.isDeleted);
+    } else if (inChatFilter === "files") {
+      list = list.filter((m) => m.fileType === "file" && !m.isDeleted);
+    } else if (inChatFilter === "images") {
+      list = list.filter((m) => m.fileType === "image" && !m.isDeleted);
+    } else if (inChatFilter === "pinned") {
+      list = list.filter((m) => m.isPinned && !m.isDeleted);
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter((m) => m.content?.toLowerCase().includes(q));
+    }
+
+    return list;
+  }, [messages, inChatFilter, searchQuery]);
+
+  const jumpToMatch = (direction) => {
+    if (filteredMessages.length === 0) return;
+    const nextIdx =
+      direction === "next"
+        ? (currentMatchIndex + 1) % filteredMessages.length
+        : (currentMatchIndex - 1 + filteredMessages.length) % filteredMessages.length;
+    setCurrentMatchIndex(nextIdx);
+    const targetMsg = filteredMessages[nextIdx];
+    if (targetMsg) {
+      const el = document.getElementById(`msg-${targetMsg._id}`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  };
+
+  // Close chat on Escape when not typing in an input
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === "Escape") {
+        const activeTag = document.activeElement?.tagName;
+        const isInput = ["INPUT", "TEXTAREA"].includes(activeTag);
+        if (!isInput && selectedChat && !showSearch) {
+          setSelectedChat(null);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [selectedChat, setSelectedChat, showSearch]);
 
   return (
     <>
@@ -855,7 +937,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
             justifyContent="space-between"
             alignItems="center"
             borderBottom="1px solid"
-            borderColor="gray.100"
+            borderColor={isDark ? "gray.800" : "gray.100"}
           >
             <HStack spacing={2} align="center" overflow="hidden">
               <IconButton
@@ -877,7 +959,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                   <AvatarBadge
                     boxSize="1em"
                     bg={isOtherUserOnline ? "green.500" : "gray.400"}
-                    borderColor="white"
+                    borderColor={isDark ? "gray.800" : "white"}
                   />
                 </Avatar>
               ) : (
@@ -894,7 +976,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                   <Text
                     fontSize={{ base: "md", md: "lg" }}
                     fontWeight="700"
-                    color="gray.800"
+                    color={isDark ? "white" : "gray.800"}
                     isTruncated
                   >
                     {!selectedChat.isGroupChat
@@ -922,7 +1004,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                     </Badge>
                   </Tooltip>
                 </HStack>
-                <Text fontSize="10px" color="gray.500">
+                <Text fontSize="10px" color={isDark ? "gray.400" : "gray.500"}>
                   {!selectedChat.isGroupChat
                     ? isOtherUserOnline
                       ? "Active Now"
@@ -938,7 +1020,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                   size="sm"
                   variant="ghost"
                   borderRadius="full"
-                  icon={<i className="fa-solid fa-magnifying-glass" style={{ color: "#64748b" }}></i>}
+                  icon={<i className="fa-solid fa-magnifying-glass" style={{ color: isDark ? "#94a3b8" : "#64748b" }}></i>}
                   onClick={() => setShowSearch(!showSearch)}
                   aria-label="Search Messages"
                 />
@@ -951,10 +1033,10 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                   size="sm"
                   variant="ghost"
                   borderRadius="full"
-                  icon={<i className="fa-solid fa-ellipsis-vertical" style={{ color: "#64748b" }}></i>}
+                  icon={<i className="fa-solid fa-ellipsis-vertical" style={{ color: isDark ? "#94a3b8" : "#64748b" }}></i>}
                   aria-label="Chat Options"
                 />
-                <MenuList p={2} borderRadius="xl" boxShadow="2xl">
+                <MenuList p={2} borderRadius="xl" boxShadow="2xl" bg={isDark ? "gray.800" : "white"} borderColor={isDark ? "gray.700" : "gray.200"}>
                   {!selectedChat.isGroupChat ? (
                     <ProfileModal user={otherUser}>
                       <MenuItem borderRadius="lg" icon={<i className="fa-solid fa-user"></i>}>
@@ -980,8 +1062,29 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                   >
                     Clear Chat History
                   </MenuItem>
+                  <MenuDivider my={1} />
+                  <MenuItem
+                    borderRadius="lg"
+                    icon={<CloseIcon boxSize="9px" />}
+                    onClick={() => setSelectedChat(null)}
+                  >
+                    Close Chat
+                  </MenuItem>
                 </MenuList>
               </Menu>
+
+              {/* Explicit Close Chat Button */}
+              <Tooltip label="Close Chat (Esc)" hasArrow>
+                <IconButton
+                  size="sm"
+                  variant="ghost"
+                  borderRadius="full"
+                  icon={<CloseIcon boxSize="9px" color={isDark ? "gray.400" : "gray.500"} />}
+                  onClick={() => setSelectedChat(null)}
+                  aria-label="Close conversation"
+                  _hover={{ bg: isDark ? "rgba(239, 68, 68, 0.2)" : "red.50", color: "red.500" }}
+                />
+              </Tooltip>
             </HStack>
           </Box>
 
@@ -989,9 +1092,9 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           {pinnedMessages.length > 0 && (
             <Box
               w="100%"
-              bg="yellow.50"
+              bg={isDark ? "#2a2415" : "yellow.50"}
               borderBottom="1px solid"
-              borderColor="yellow.200"
+              borderColor={isDark ? "yellow.800" : "yellow.200"}
               px={3}
               py={1.5}
               display="flex"
@@ -1001,12 +1104,12 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
               <HStack spacing={2} overflow="hidden" flex="1">
                 <i className="fa-solid fa-thumbtack" style={{ color: "#ca8a04", fontSize: "11px" }}></i>
                 <Box overflow="hidden" flex="1">
-                  <Text fontSize="xs" fontWeight="700" color="yellow.900" isTruncated>
+                  <Text fontSize="xs" fontWeight="700" color={isDark ? "yellow.200" : "yellow.900"} isTruncated>
                     Pinned Message {pinnedMessages.length > 1 && `(${pinnedIndex + 1}/${pinnedMessages.length})`}
                   </Text>
                   <Text
                     fontSize="xs"
-                    color="yellow.800"
+                    color={isDark ? "yellow.300" : "yellow.800"}
                     isTruncated
                     cursor="pointer"
                     onClick={() => {
@@ -1046,35 +1149,122 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
 
           {/* In-Chat Message Search Bar */}
           {showSearch && (
-            <Box w="100%" py={2} px={1}>
-              <InputGroup size="sm">
-                <InputLeftElement pointerEvents="none">
-                  <i className="fa-solid fa-magnifying-glass" style={{ color: "#94a3b8", fontSize: "12px" }}></i>
-                </InputLeftElement>
-                <Input
-                  placeholder="Search in this conversation..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  borderRadius="xl"
-                  bg="gray.50"
-                />
-                {searchQuery && (
-                  <InputRightElement>
-                    <IconButton
-                      size="xs"
-                      variant="ghost"
-                      icon={<CloseIcon boxSize="8px" />}
-                      onClick={() => setSearchQuery("")}
-                      aria-label="Clear Search"
-                    />
-                  </InputRightElement>
+            <Box w="100%" py={2.5} px={2} bg={isDark ? "gray.800" : "gray.50"} borderRadius="xl" mb={2} borderWidth="1px" borderColor={isDark ? "gray.700" : "gray.200"}>
+              <HStack spacing={2} mb={2}>
+                <InputGroup size="sm" flex="1">
+                  <InputLeftElement pointerEvents="none">
+                    <i className="fa-solid fa-magnifying-glass" style={{ color: "#2563eb", fontSize: "12px" }}></i>
+                  </InputLeftElement>
+                  <Input
+                    placeholder="Search in this conversation..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setCurrentMatchIndex(0);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") jumpToMatch("next");
+                      if (e.key === "Escape") setShowSearch(false);
+                    }}
+                    borderRadius="xl"
+                    bg={isDark ? "gray.900" : "white"}
+                    color={isDark ? "white" : "gray.900"}
+                    borderColor={isDark ? "gray.700" : "gray.200"}
+                    _focus={{ borderColor: "blue.500", boxShadow: "0 0 0 1px #3b82f6" }}
+                  />
+                  {searchQuery && (
+                    <InputRightElement>
+                      <IconButton
+                        size="xs"
+                        variant="ghost"
+                        icon={<CloseIcon boxSize="8px" />}
+                        onClick={() => {
+                          setSearchQuery("");
+                          setCurrentMatchIndex(0);
+                        }}
+                        aria-label="Clear Search"
+                      />
+                    </InputRightElement>
+                  )}
+                </InputGroup>
+
+                {/* Match navigation buttons */}
+                {filteredMessages.length > 0 && searchQuery && (
+                  <HStack spacing={1}>
+                    <Text fontSize="xs" fontWeight="700" color={isDark ? "blue.300" : "blue.600"} whiteSpace="nowrap">
+                      {currentMatchIndex + 1}/{filteredMessages.length}
+                    </Text>
+                    <Tooltip label="Previous match" hasArrow>
+                      <IconButton
+                        size="xs"
+                        variant="outline"
+                        bg={isDark ? "gray.800" : "white"}
+                        borderColor={isDark ? "gray.700" : "gray.300"}
+                        icon={<i className="fa-solid fa-chevron-up" style={{ fontSize: "10px" }}></i>}
+                        onClick={() => jumpToMatch("prev")}
+                        aria-label="Previous match"
+                      />
+                    </Tooltip>
+                    <Tooltip label="Next match" hasArrow>
+                      <IconButton
+                        size="xs"
+                        variant="outline"
+                        bg={isDark ? "gray.800" : "white"}
+                        borderColor={isDark ? "gray.700" : "gray.300"}
+                        icon={<i className="fa-solid fa-chevron-down" style={{ fontSize: "10px" }}></i>}
+                        onClick={() => jumpToMatch("next")}
+                        aria-label="Next match"
+                      />
+                    </Tooltip>
+                  </HStack>
                 )}
-              </InputGroup>
-              {searchQuery && (
-                <Text fontSize="xs" color="gray.500" mt={1} ml={1}>
-                  Found {filteredMessages.length} message(s)
-                </Text>
-              )}
+
+                <IconButton
+                  size="sm"
+                  variant="ghost"
+                  icon={<CloseIcon boxSize="9px" />}
+                  onClick={() => {
+                    setShowSearch(false);
+                    setSearchQuery("");
+                    setInChatFilter("all");
+                  }}
+                  aria-label="Close search"
+                />
+              </HStack>
+
+              {/* Type filter chips */}
+              <HStack spacing={1.5} overflowX="auto" sx={{ scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" } }}>
+                {[
+                  { key: "all", label: "All Messages" },
+                  { key: "voice", label: "🎙️ Voice Notes" },
+                  { key: "files", label: "📎 Files" },
+                  { key: "images", label: "🖼️ Photos" },
+                  { key: "pinned", label: "📌 Pinned" },
+                ].map((tab) => {
+                  const isActive = inChatFilter === tab.key;
+                  return (
+                    <Button
+                      key={tab.key}
+                      size="xs"
+                      variant={isActive ? "solid" : "ghost"}
+                      colorScheme={isActive ? "blue" : "gray"}
+                      bg={isActive ? "blue.600" : "transparent"}
+                      color={isActive ? "white" : isDark ? "gray.300" : "gray.600"}
+                      borderRadius="full"
+                      px={2.5}
+                      py={1}
+                      fontSize="10px"
+                      fontWeight="600"
+                      onClick={() => {
+                        setInChatFilter(tab.key);
+                        setCurrentMatchIndex(0);
+                      }}
+                    >
+                      {tab.label}
+                    </Button>
+                  );
+                })}
+              </HStack>
             </Box>
           )}
 
@@ -1086,29 +1276,397 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
             flexDir="column"
             justifyContent="flex-end"
             p={3}
-            bg="linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)"
+            bg={isDark ? "#090d16" : "#f8fafc"}
             w="100%"
             h="100%"
             borderRadius="2xl"
             overflowY="hidden"
             borderWidth="1px"
-            borderColor="gray.200"
+            borderColor={isDark ? "gray.800" : "gray.200"}
             position="relative"
           >
             {loading ? (
-              <Spinner
-                size="xl"
-                w={14}
-                h={14}
-                alignSelf="center"
-                margin="auto"
-                color="blue.500"
-                thickness="3px"
-              />
+              <MessageLoading />
+            ) : messages.length === 0 ? (
+              <Box
+                flex={1}
+                display="flex"
+                flexDirection="column"
+                alignItems="center"
+                justifyContent="center"
+                textAlign="center"
+                p={4}
+                overflowY="auto"
+                className="messages"
+              >
+                {/* Profile Avatar / Group Icon */}
+                <Box position="relative" mb={3}>
+                  {selectedChat.isGroupChat ? (
+                    <Avatar
+                      size="xl"
+                      name={selectedChat.chatName}
+                      bg="blue.500"
+                      color="white"
+                      boxShadow="lg"
+                      border="3px solid"
+                      borderColor={isDark ? "blue.400" : "blue.500"}
+                      icon={<i className="fa-solid fa-users" style={{ fontSize: "28px" }}></i>}
+                    />
+                  ) : (
+                    <Avatar
+                      size="xl"
+                      name={otherUser?.name || "User"}
+                      src={otherUser?.pic}
+                      boxShadow="lg"
+                      border="3px solid"
+                      borderColor={isDark ? "gray.700" : "gray.200"}
+                    >
+                      {isOtherUserOnline && (
+                        <AvatarBadge
+                          boxSize="1.2em"
+                          bg="green.500"
+                          borderColor={isDark ? "#090d16" : "#f8fafc"}
+                        />
+                      )}
+                    </Avatar>
+                  )}
+                </Box>
+
+                {/* Main Heading & Subtext */}
+                <Text
+                  fontSize="lg"
+                  fontWeight="700"
+                  color={isDark ? "gray.100" : "gray.800"}
+                  mb={1}
+                >
+                  {selectedChat.isGroupChat
+                    ? `Welcome to ${selectedChat.chatName}! 🎉`
+                    : `Say hello to ${otherUser?.name || "your friend"}! 👋`}
+                </Text>
+
+                <Text
+                  fontSize="xs"
+                  color={isDark ? "gray.400" : "gray.500"}
+                  maxW="360px"
+                  mb={2.5}
+                >
+                  {selectedChat.isGroupChat
+                    ? `${selectedChat.users?.length || 0} members in this group. Break the ice and kick off the conversation!`
+                    : otherUser?.email
+                    ? `${otherUser.email} • Start your direct encrypted conversation.`
+                    : "This is the beginning of your direct conversation."}
+                </Text>
+
+                {/* E2EE Security Badge */}
+                <Badge
+                  display="inline-flex"
+                  alignItems="center"
+                  px={2.5}
+                  py={0.5}
+                  borderRadius="full"
+                  fontSize="11px"
+                  fontWeight="600"
+                  colorScheme="green"
+                  variant="subtle"
+                  mb={4}
+                >
+                  <i className="fa-solid fa-shield-halved" style={{ marginRight: "5px" }}></i>
+                  AES-256-GCM Encrypted
+                </Badge>
+
+                {/* Conversation Starters / Quick Actions */}
+                <Box
+                  w="100%"
+                  maxW="440px"
+                  p={3.5}
+                  borderRadius="xl"
+                  bg={isDark ? "rgba(255, 255, 255, 0.03)" : "white"}
+                  border="1px solid"
+                  borderColor={isDark ? "gray.800" : "gray.200"}
+                  boxShadow="sm"
+                >
+                  <Text
+                    fontSize="11px"
+                    fontWeight="700"
+                    textTransform="uppercase"
+                    letterSpacing="wider"
+                    color={isDark ? "gray.400" : "gray.500"}
+                    mb={2.5}
+                  >
+                    ✨ Conversation Starters
+                  </Text>
+
+                  <Wrap spacing={2} justify="center">
+                    {selectedChat.isGroupChat ? (
+                      <>
+                        <WrapItem>
+                          <Button
+                            size="xs"
+                            py={3}
+                            px={3}
+                            borderRadius="full"
+                            variant="outline"
+                            borderColor={isDark ? "gray.700" : "gray.300"}
+                            bg={isDark ? "gray.800" : "gray.50"}
+                            color={isDark ? "gray.200" : "gray.700"}
+                            _hover={{
+                              bg: isDark ? "gray.700" : "blue.50",
+                              borderColor: "blue.400",
+                              transform: "translateY(-1px)",
+                            }}
+                            transition="all 0.15s ease"
+                            onClick={() => handleQuickStarter("Hey everyone! Great to connect here 👋")}
+                          >
+                            👋 Hey everyone!
+                          </Button>
+                        </WrapItem>
+                        <WrapItem>
+                          <Button
+                            size="xs"
+                            py={3}
+                            px={3}
+                            borderRadius="full"
+                            variant="outline"
+                            borderColor={isDark ? "gray.700" : "gray.300"}
+                            bg={isDark ? "gray.800" : "gray.50"}
+                            color={isDark ? "gray.200" : "gray.700"}
+                            _hover={{
+                              bg: isDark ? "gray.700" : "blue.50",
+                              borderColor: "blue.400",
+                              transform: "translateY(-1px)",
+                            }}
+                            transition="all 0.15s ease"
+                            onClick={() => handleQuickStarter("📢 Quick team update: ")}
+                          >
+                            📢 Team update
+                          </Button>
+                        </WrapItem>
+                        <WrapItem>
+                          <Button
+                            size="xs"
+                            py={3}
+                            px={3}
+                            borderRadius="full"
+                            variant="outline"
+                            borderColor={isDark ? "gray.700" : "gray.300"}
+                            bg={isDark ? "gray.800" : "gray.50"}
+                            color={isDark ? "gray.200" : "gray.700"}
+                            _hover={{
+                              bg: isDark ? "gray.700" : "blue.50",
+                              borderColor: "blue.400",
+                              transform: "translateY(-1px)",
+                            }}
+                            transition="all 0.15s ease"
+                            onClick={() => handleQuickStarter("Excited to collaborate with everyone here! 🚀")}
+                          >
+                            🚀 Let's collaborate
+                          </Button>
+                        </WrapItem>
+                        <WrapItem>
+                          <Button
+                            size="xs"
+                            py={3}
+                            px={3}
+                            borderRadius="full"
+                            variant="outline"
+                            borderColor={isDark ? "gray.700" : "gray.300"}
+                            bg={isDark ? "gray.800" : "gray.50"}
+                            color={isDark ? "gray.200" : "gray.700"}
+                            _hover={{
+                              bg: isDark ? "gray.700" : "blue.50",
+                              borderColor: "blue.400",
+                              transform: "translateY(-1px)",
+                            }}
+                            transition="all 0.15s ease"
+                            onClick={startRecording}
+                          >
+                            🎙️ Voice note
+                          </Button>
+                        </WrapItem>
+                        <WrapItem>
+                          <Button
+                            size="xs"
+                            py={3}
+                            px={3}
+                            borderRadius="full"
+                            variant="outline"
+                            borderColor={isDark ? "gray.700" : "gray.300"}
+                            bg={isDark ? "gray.800" : "gray.50"}
+                            color={isDark ? "gray.200" : "gray.700"}
+                            _hover={{
+                              bg: isDark ? "gray.700" : "blue.50",
+                              borderColor: "blue.400",
+                              transform: "translateY(-1px)",
+                            }}
+                            transition="all 0.15s ease"
+                            onClick={() => fileInputRef.current?.click()}
+                          >
+                            📎 Share file
+                          </Button>
+                        </WrapItem>
+                      </>
+                    ) : (
+                      <>
+                        <WrapItem>
+                          <Button
+                            size="xs"
+                            py={3}
+                            px={3}
+                            borderRadius="full"
+                            variant="outline"
+                            borderColor={isDark ? "gray.700" : "gray.300"}
+                            bg={isDark ? "gray.800" : "gray.50"}
+                            color={isDark ? "gray.200" : "gray.700"}
+                            _hover={{
+                              bg: isDark ? "gray.700" : "blue.50",
+                              borderColor: "blue.400",
+                              transform: "translateY(-1px)",
+                            }}
+                            transition="all 0.15s ease"
+                            onClick={() => handleQuickStarter(`Hey ${otherUser?.name?.split(" ")[0] || "there"}! How's it going? 👋`)}
+                          >
+                            👋 Say Hello
+                          </Button>
+                        </WrapItem>
+                        <WrapItem>
+                          <Button
+                            size="xs"
+                            py={3}
+                            px={3}
+                            borderRadius="full"
+                            variant="outline"
+                            borderColor={isDark ? "gray.700" : "gray.300"}
+                            bg={isDark ? "gray.800" : "gray.50"}
+                            color={isDark ? "gray.200" : "gray.700"}
+                            _hover={{
+                              bg: isDark ? "gray.700" : "blue.50",
+                              borderColor: "blue.400",
+                              transform: "translateY(-1px)",
+                            }}
+                            transition="all 0.15s ease"
+                            onClick={() => handleQuickStarter("Hey! Looking forward to working together 🚀")}
+                          >
+                            🚀 Collaborate
+                          </Button>
+                        </WrapItem>
+                        <WrapItem>
+                          <Button
+                            size="xs"
+                            py={3}
+                            px={3}
+                            borderRadius="full"
+                            variant="outline"
+                            borderColor={isDark ? "gray.700" : "gray.300"}
+                            bg={isDark ? "gray.800" : "gray.50"}
+                            color={isDark ? "gray.200" : "gray.700"}
+                            _hover={{
+                              bg: isDark ? "gray.700" : "blue.50",
+                              borderColor: "blue.400",
+                              transform: "translateY(-1px)",
+                            }}
+                            transition="all 0.15s ease"
+                            onClick={() => handleQuickStarter("Hey! Up for a quick catch-up today? ☕")}
+                          >
+                            ☕ Catch up soon
+                          </Button>
+                        </WrapItem>
+                        <WrapItem>
+                          <Button
+                            size="xs"
+                            py={3}
+                            px={3}
+                            borderRadius="full"
+                            variant="outline"
+                            borderColor={isDark ? "gray.700" : "gray.300"}
+                            bg={isDark ? "gray.800" : "gray.50"}
+                            color={isDark ? "gray.200" : "gray.700"}
+                            _hover={{
+                              bg: isDark ? "gray.700" : "blue.50",
+                              borderColor: "blue.400",
+                              transform: "translateY(-1px)",
+                            }}
+                            transition="all 0.15s ease"
+                            onClick={startRecording}
+                          >
+                            🎙️ Send Voice Note
+                          </Button>
+                        </WrapItem>
+                        <WrapItem>
+                          <Button
+                            size="xs"
+                            py={3}
+                            px={3}
+                            borderRadius="full"
+                            variant="outline"
+                            borderColor={isDark ? "gray.700" : "gray.300"}
+                            bg={isDark ? "gray.800" : "gray.50"}
+                            color={isDark ? "gray.200" : "gray.700"}
+                            _hover={{
+                              bg: isDark ? "gray.700" : "blue.50",
+                              borderColor: "blue.400",
+                              transform: "translateY(-1px)",
+                            }}
+                            transition="all 0.15s ease"
+                            onClick={() => fileInputRef.current?.click()}
+                          >
+                            📎 Share File
+                          </Button>
+                        </WrapItem>
+                      </>
+                    )}
+                  </Wrap>
+                </Box>
+              </Box>
+            ) : filteredMessages.length === 0 ? (
+              <Box
+                flex={1}
+                display="flex"
+                flexDirection="column"
+                alignItems="center"
+                justifyContent="center"
+                textAlign="center"
+                p={6}
+                className="messages"
+              >
+                <Box
+                  w="50px"
+                  h="50px"
+                  borderRadius="full"
+                  bg={isDark ? "gray.800" : "gray.100"}
+                  display="flex"
+                  alignItems="center"
+                  justifyContent="center"
+                  mb={3}
+                  color={isDark ? "gray.400" : "gray.500"}
+                >
+                  <i className="fa-solid fa-magnifying-glass" style={{ fontSize: "18px" }}></i>
+                </Box>
+                <Text fontSize="sm" fontWeight="700" color={isDark ? "gray.200" : "gray.700"} mb={1}>
+                  No matching messages found
+                </Text>
+                <Text fontSize="xs" color={isDark ? "gray.400" : "gray.500"} maxW="300px" mb={3}>
+                  {searchQuery.trim()
+                    ? `No messages matched "${searchQuery}".`
+                    : `No messages match the current "${inChatFilter}" filter.`}
+                </Text>
+                <Button
+                  size="xs"
+                  colorScheme="blue"
+                  variant="outline"
+                  borderRadius="full"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setInChatFilter("all");
+                  }}
+                >
+                  Clear search & filter
+                </Button>
+              </Box>
             ) : (
               <div className="messages" style={{ overflowY: "auto", flex: 1 }}>
                 <ScrollableChat
                   messages={filteredMessages}
+                  searchQuery={searchQuery}
                   handleReaction={handleReaction}
                   handleDeleteMessage={handleDeleteMessage}
                   handleReplyMessage={handleReplyMessage}
@@ -1139,12 +1697,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
             {/* Live Typing Animation */}
             {isTyping && (
               <Box mb={2} ml={1} display="flex" alignItems="center">
-                <Lottie
-                  options={defaultOptions}
-                  width={55}
-                  height={25}
-                  style={{ marginLeft: 0 }}
-                />
+                <TypingDots />
               </Box>
             )}
 
@@ -1390,7 +1943,10 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
 
                   <Input
                     variant="filled"
-                    bg="white"
+                    bg={isDark ? "gray.800" : "white"}
+                    color={isDark ? "white" : "gray.900"}
+                    borderWidth="1px"
+                    borderColor={isDark ? "gray.700" : "gray.200"}
                     placeholder={
                       editingMessage
                         ? "Edit your message..."
@@ -1406,7 +1962,7 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
                     py={5}
                     boxShadow="sm"
                     _focus={{
-                      bg: "white",
+                      bg: isDark ? "gray.800" : "white",
                       borderColor: editingMessage ? "purple.400" : "blue.400",
                       boxShadow: editingMessage ? "0 0 0 1px #a855f7" : "0 0 0 1px #3b82f6",
                     }}
@@ -1485,27 +2041,65 @@ const SingleChat = ({ fetchAgain, setFetchAgain }) => {
           color="gray.500"
         >
           <Box
-            p={6}
-            bg="blue.50"
-            borderRadius="full"
-            boxShadow="inner"
+            w="80px"
+            h="80px"
+            bg={isDark ? "blue.900" : "blue.50"}
+            borderRadius="2xl"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
             mb={4}
-            color="blue.500"
+            color={isDark ? "blue.300" : "blue.600"}
+            boxShadow="sm"
           >
-            <i className="fa-solid fa-shield-halved" style={{ fontSize: "48px" }}></i>
+            <i className="fa-solid fa-comments" style={{ fontSize: "36px" }}></i>
           </Box>
-          <Text fontSize="2xl" fontWeight="700" fontFamily="Work sans" color="gray.800" mb={1}>
-            Chat-To-Talk
+          <Text
+            fontSize={{ base: "2xl", md: "3xl" }}
+            fontWeight="800"
+            fontFamily="Outfit, sans-serif"
+            letterSpacing="-0.02em"
+            color={isDark ? "white" : "gray.900"}
+            mb={1}
+          >
+            Chatt
           </Text>
-          <HStack justify="center" spacing={1} mb={3} color="blue.600">
-            <i className="fa-solid fa-lock" style={{ fontSize: "12px" }}></i>
-            <Text fontSize="xs" fontWeight="700" letterSpacing="wide">
+          <HStack justify="center" spacing={1.5} mb={3} color="blue.500">
+            <i className="fa-solid fa-lock" style={{ fontSize: "11px" }}></i>
+            <Text fontSize="xs" fontWeight="700" letterSpacing="wider">
               END-TO-END ENCRYPTED
             </Text>
           </HStack>
-          <Text fontSize="sm" maxW="360px" color="gray.500">
-            Your personal messages and audio notes are secured with AES-256-GCM encryption.
+          <Text fontSize="xs" maxW="380px" color={isDark ? "gray.400" : "gray.500"} lineHeight="tall" mb={5}>
+            Messages and voice notes are protected with client-side AES-256-GCM encryption. Select a chat from the left or press the search shortcut to get started.
           </Text>
+          <HStack spacing={2}>
+            <Button
+              size="sm"
+              variant="outline"
+              borderColor={isDark ? "gray.700" : "gray.300"}
+              bg={isDark ? "gray.800" : "white"}
+              color={isDark ? "gray.200" : "gray.700"}
+              _hover={{ bg: isDark ? "gray.700" : "gray.50", borderColor: isDark ? "gray.600" : "gray.400" }}
+              borderRadius="xl"
+              fontSize="xs"
+              fontWeight="600"
+              leftIcon={<i className="fa-solid fa-magnifying-glass" style={{ color: "#2563eb", fontSize: "12px" }}></i>}
+              onClick={() => {
+                const isMac = typeof navigator !== "undefined" && navigator.platform?.toUpperCase().indexOf("MAC") >= 0;
+                window.dispatchEvent(
+                  new KeyboardEvent("keydown", {
+                    key: "k",
+                    ctrlKey: !isMac,
+                    metaKey: isMac,
+                    bubbles: true,
+                  })
+                );
+              }}
+            >
+              Search Users & Chats
+            </Button>
+          </HStack>
         </Box>
       )}
     </>

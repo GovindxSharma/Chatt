@@ -32,7 +32,7 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
   const [renameLoading, setRenameLoading] = useState(false);
   const toast = useToast();
 
-  const { selectedChat, setSelectedChat, user } = ChatState();
+  const { selectedChat, setSelectedChat, user, isDark } = ChatState();
 
   const handleSearch = async (query) => {
     setSearch(query);
@@ -237,16 +237,25 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
 
       <Modal onClose={onClose} isOpen={isOpen} isCentered size="lg">
         <ModalOverlay backdropFilter="blur(6px)" bg="blackAlpha.600" />
-        <ModalContent borderRadius="2xl" overflow="hidden" boxShadow="2xl" mx={4}>
+        <ModalContent
+          borderRadius="2xl"
+          overflow="hidden"
+          boxShadow="2xl"
+          borderWidth="1px"
+          borderColor={isDark ? "gray.700" : "gray.200"}
+          bg={isDark ? "gray.800" : "white"}
+          color={isDark ? "gray.100" : "gray.800"}
+          mx={4}
+        >
           <ModalHeader
             fontSize="20px"
-            fontFamily="Work sans"
+            fontFamily="Outfit, sans-serif"
             fontWeight="700"
             display="flex"
             justifyContent="center"
             alignItems="center"
-            gap={2}
-            bg="linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)"
+            gap={2.5}
+            bg="blue.600"
             color="white"
             py={4}
           >
@@ -255,8 +264,8 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
           </ModalHeader>
 
           <ModalCloseButton color="white" />
-          <ModalBody display="flex" flexDir="column" p={6}>
-            <Text fontSize="xs" fontWeight="700" color="gray.600" mb={1} textTransform="uppercase">
+          <ModalBody display="flex" flexDir="column" p={6} bg={isDark ? "gray.800" : "white"}>
+            <Text fontSize="xs" fontWeight="700" color={isDark ? "gray.300" : "gray.600"} mb={1} textTransform="uppercase">
               Group Members ({selectedChat.users?.length})
             </Text>
             <Box w="100%" display="flex" flexWrap="wrap" pb={3}>
@@ -270,7 +279,7 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
               ))}
             </Box>
 
-            <Text fontSize="xs" fontWeight="700" color="gray.600" mb={1} textTransform="uppercase">
+            <Text fontSize="xs" fontWeight="700" color={isDark ? "gray.300" : "gray.600"} mb={1} textTransform="uppercase">
               Rename Group
             </Text>
             <HStack mb={4}>
@@ -279,6 +288,9 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
                 value={groupChatName}
                 onChange={(e) => setGroupChatName(e.target.value)}
                 borderRadius="xl"
+                bg={isDark ? "gray.700" : "white"}
+                color={isDark ? "white" : "gray.900"}
+                borderColor={isDark ? "gray.600" : "gray.200"}
               />
               <Button
                 colorScheme="blue"
@@ -291,7 +303,7 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
               </Button>
             </HStack>
 
-            <Text fontSize="xs" fontWeight="700" color="gray.600" mb={1} textTransform="uppercase">
+            <Text fontSize="xs" fontWeight="700" color={isDark ? "gray.300" : "gray.600"} mb={1} textTransform="uppercase">
               Add Members
             </Text>
             <Input
@@ -300,6 +312,9 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
               value={search}
               onChange={(e) => handleSearch(e.target.value)}
               borderRadius="xl"
+              bg={isDark ? "gray.700" : "white"}
+              color={isDark ? "white" : "gray.900"}
+              borderColor={isDark ? "gray.600" : "gray.200"}
             />
 
             <Box maxH="180px" overflowY="auto">
@@ -319,7 +334,7 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
             </Box>
           </ModalBody>
 
-          <ModalFooter bg="gray.50" px={6} py={4} display="flex" justifyContent="space-between">
+          <ModalFooter bg={isDark ? "gray.900" : "gray.50"} borderColor={isDark ? "gray.700" : "gray.200"} borderTopWidth="1px" px={6} py={4} display="flex" justifyContent="space-between">
             <Button
               onClick={() => handleRemove(user)}
               colorScheme="red"
@@ -328,7 +343,7 @@ const UpdateGroupChatModal = ({ fetchMessages, fetchAgain, setFetchAgain }) => {
             >
               Leave Group
             </Button>
-            <Button colorScheme="gray" onClick={onClose} borderRadius="lg">
+            <Button colorScheme={isDark ? "whiteAlpha" : "gray"} onClick={onClose} borderRadius="lg">
               Close
             </Button>
           </ModalFooter>

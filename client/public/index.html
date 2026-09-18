@@ -3,24 +3,76 @@
   <head>
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-    <meta name="theme-color" content="#6366f1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#2563eb" />
+    
+    <!-- Primary SEO Metadata -->
+    <title>Chatt — Real-time Secure Messaging & Team Collaboration</title>
     <meta
       name="description"
-      content="Chatt — Modern full-stack real-time messaging application powered by Socket.IO and MERN stack"
+      content="Chatt is a modern, high-performance real-time messaging application powered by WebSockets, AES-256-GCM encryption, voice notes, and group chats."
     />
+    <meta name="keywords" content="chat, real-time messaging, socket.io, encrypted chat, secure messaging, team collaboration, voice notes, react" />
+    <meta name="author" content="Chatt Team" />
+    <link rel="canonical" href="https://chatt-app.com" />
+
+    <!-- Open Graph / Facebook / LinkedIn -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://chatt-app.com" />
+    <meta property="og:title" content="Chatt — Real-time Secure Messaging & Team Collaboration" />
+    <meta property="og:description" content="Experience instant, end-to-end encrypted messaging with voice notes, file sharing, and group chats built for modern communication." />
+    <meta property="og:image" content="%PUBLIC_URL%/logo512.png" />
+    <meta property="og:site_name" content="Chatt" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://chatt-app.com" />
+    <meta name="twitter:title" content="Chatt — Real-time Secure Messaging & Team Collaboration" />
+    <meta name="twitter:description" content="Instant, end-to-end encrypted messaging with voice notes, file sharing, and group chats." />
+    <meta name="twitter:image" content="%PUBLIC_URL%/logo512.png" />
+
+    <!-- Mobile & PWA Configuration -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Chatt" />
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     
-    <!-- Google Fonts -->
+    <!-- Google Fonts Preconnect & Display Swap -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Work+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Work+Sans:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     
     <!-- Font Awesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+      integrity="sha512-DTOQO9RWCH3ppGqcWaEA1BIZOC6xxalwEsw9c2QQeAIftl+Vegovlnee1c9QX4TctnWMn13TZye+giMm8e2LwA=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
     
-    <title>Chatt — Real-time Messaging</title>
+    <!-- Structured Data (JSON-LD) for Rich Google Snippets -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Chatt",
+        "url": "https://chatt-app.com",
+        "description": "Modern real-time messaging application powered by Socket.IO, AES-256-GCM encryption, voice notes, and group chats.",
+        "applicationCategory": "CommunicationApplication",
+        "operatingSystem": "All",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run Chatt.</noscript>

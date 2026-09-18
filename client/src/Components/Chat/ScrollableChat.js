@@ -29,6 +29,7 @@ import { ChatState } from "../../Context/ChatProvider.js";
 
 // Enhanced Audio Player with Dynamic Waveform & 1x / 1.5x / 2x Speed Controls
 const AudioMessagePlayer = ({ audioUrl, isSender }) => {
+  const { isDark } = ChatState() || {};
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [currentTime, setCurrentTime] = useState(0);
@@ -86,7 +87,7 @@ const AudioMessagePlayer = ({ audioUrl, isSender }) => {
       display="flex"
       flexDir="column"
       gap={1.5}
-      bg={isSender ? "rgba(255, 255, 255, 0.22)" : "gray.100"}
+      bg={isSender ? "rgba(255, 255, 255, 0.22)" : isDark ? "#0f172a" : "gray.100"}
       p={2.5}
       borderRadius="xl"
       minW="220px"
@@ -149,8 +150,8 @@ const AudioMessagePlayer = ({ audioUrl, isSender }) => {
           fontWeight="bold"
           borderRadius="full"
           variant="ghost"
-          color={isSender ? "white" : "blue.600"}
-          bg={isSender ? "whiteAlpha.300" : "blue.50"}
+          color={isSender ? "white" : isDark ? "blue.300" : "blue.600"}
+          bg={isSender ? "whiteAlpha.300" : isDark ? "gray.800" : "blue.50"}
           px={1.5}
           h="20px"
           onClick={cycleSpeed}
@@ -164,7 +165,7 @@ const AudioMessagePlayer = ({ audioUrl, isSender }) => {
       <Box
         w="100%"
         h="4px"
-        bg={isSender ? "whiteAlpha.400" : "gray.300"}
+        bg={isSender ? "whiteAlpha.400" : isDark ? "gray.700" : "gray.300"}
         borderRadius="full"
         cursor="pointer"
         onClick={handleSeek}
@@ -179,12 +180,12 @@ const AudioMessagePlayer = ({ audioUrl, isSender }) => {
       </Box>
 
       <Box display="flex" justifyContent="space-between" alignItems="center" px={0.5}>
-        <Text fontSize="9px" opacity={0.8} fontWeight="500">
+        <Text fontSize="9px" opacity={0.85} color={isSender ? "whiteAlpha.900" : isDark ? "gray.300" : "gray.600"} fontWeight="500">
           {formatTime(currentTime)} / {formatTime(duration)}
         </Text>
         <HStack spacing={1}>
-          <i className="fa-solid fa-microphone" style={{ fontSize: "9px", opacity: 0.7 }}></i>
-          <Text fontSize="9px" opacity={0.8} fontWeight="600">
+          <i className="fa-solid fa-microphone" style={{ fontSize: "9px", opacity: 0.85, color: isSender ? "white" : isDark ? "#93c5fd" : "#2563eb" }}></i>
+          <Text fontSize="9px" opacity={0.85} color={isSender ? "whiteAlpha.900" : isDark ? "gray.300" : "gray.600"} fontWeight="600">
             Voice Note
           </Text>
         </HStack>
@@ -195,6 +196,7 @@ const AudioMessagePlayer = ({ audioUrl, isSender }) => {
 
 // Document / File Message Card
 const FileMessageCard = ({ fileUrl, fileName, isSender }) => {
+  const { isDark } = ChatState() || {};
   const getFileIcon = (name) => {
     if (!name) return "fa-file";
     const ext = name.split(".").pop()?.toLowerCase();
@@ -220,11 +222,11 @@ const FileMessageCard = ({ fileUrl, fileName, isSender }) => {
         display="flex"
         alignItems="center"
         gap={3}
-        bg={isSender ? "rgba(255, 255, 255, 0.2)" : "gray.100"}
+        bg={isSender ? "rgba(255, 255, 255, 0.2)" : isDark ? "#0f172a" : "gray.100"}
         p={2.5}
         borderRadius="xl"
         borderWidth="1px"
-        borderColor={isSender ? "whiteAlpha.300" : "gray.200"}
+        borderColor={isSender ? "whiteAlpha.300" : isDark ? "#334155" : "gray.200"}
         minW="180px"
         maxW="260px"
         transition="all 0.2s"
@@ -232,19 +234,19 @@ const FileMessageCard = ({ fileUrl, fileName, isSender }) => {
       >
         <Box
           p={2}
-          bg={isSender ? "rgba(255, 255, 255, 0.3)" : "blue.100"}
+          bg={isSender ? "rgba(255, 255, 255, 0.3)" : isDark ? "blue.900" : "blue.100"}
           borderRadius="lg"
-          color={isSender ? "white" : "blue.600"}
+          color={isSender ? "white" : isDark ? "blue.300" : "blue.600"}
         >
           <i className={`fa-solid ${getFileIcon(fileName)}`} style={{ fontSize: "18px" }}></i>
         </Box>
         <Box flex="1" overflow="hidden">
-          <Text fontSize="xs" fontWeight="600" isTruncated>
+          <Text fontSize="xs" fontWeight="600" isTruncated color={isSender ? "white" : isDark ? "#f8fafc" : "#0f172a"}>
             {fileName || "Attachment"}
           </Text>
           <HStack spacing={1}>
-            <i className="fa-solid fa-download" style={{ fontSize: "10px", opacity: 0.7 }}></i>
-            <Text fontSize="10px" opacity={0.8}>
+            <i className="fa-solid fa-download" style={{ fontSize: "10px", opacity: 0.8, color: isSender ? "white" : isDark ? "#94a3b8" : "#64748b" }}></i>
+            <Text fontSize="10px" opacity={0.8} color={isSender ? "whiteAlpha.900" : isDark ? "gray.400" : "gray.500"}>
               Download file
             </Text>
           </HStack>
@@ -254,15 +256,55 @@ const FileMessageCard = ({ fileUrl, fileName, isSender }) => {
   );
 };
 
+// Helper component to highlight search matches in message text
+const HighlightedText = ({ text, query, isSender }) => {
+  const { isDark } = ChatState() || {};
+  if (!query || !query.trim() || !text) return <>{text}</>;
+  const cleanQ = query.trim();
+  const regex = new RegExp(`(${cleanQ.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
+  const parts = String(text).split(regex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        regex.test(part) ? (
+          <mark
+            key={i}
+            style={{
+              backgroundColor: isSender
+                ? "rgba(255, 255, 255, 0.3)"
+                : isDark
+                ? "#3b82f6"
+                : "#fef3c7",
+              color: isSender
+                ? "#ffffff"
+                : isDark
+                ? "#ffffff"
+                : "#78350f",
+              padding: "0 2px",
+              borderRadius: "3px",
+              fontWeight: "600",
+            }}
+          >
+            {part}
+          </mark>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
+};
+
 const ScrollableChat = ({
   messages,
+  searchQuery = "",
   handleReaction,
   handleDeleteMessage,
   handleReplyMessage,
   handleEditMessage,
   handlePinMessage,
 }) => {
-  const { user } = ChatState();
+  const { user, isDark } = ChatState();
   const toast = useToast();
   const [previewImage, setPreviewImage] = useState(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -440,11 +482,8 @@ const ScrollableChat = ({
                 {/* Bubble Container */}
                 <div
                   style={{
-                    backgroundColor: isSender ? "#3b82f6" : "#ffffff",
-                    backgroundImage: isSender
-                      ? "linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)"
-                      : "none",
-                    color: isSender ? "#ffffff" : "#1e293b",
+                    backgroundColor: isSender ? "#2563eb" : isDark ? "#1e293b" : "#ffffff",
+                    color: isSender ? "#ffffff" : isDark ? "#f8fafc" : "#0f172a",
                     marginLeft: !isSender
                       ? isSameSenderMargin(messages, m, i, user?._id)
                       : "auto",
@@ -456,8 +495,10 @@ const ScrollableChat = ({
                     maxWidth: "80%",
                     boxShadow: isSender
                       ? "0 3px 10px rgba(59, 130, 246, 0.25)"
+                      : isDark
+                      ? "0 2px 8px rgba(0, 0, 0, 0.35)"
                       : "0 2px 8px rgba(0, 0, 0, 0.05)",
-                    border: isSender ? "none" : "1px solid #e2e8f0",
+                    border: isSender ? "none" : isDark ? "1px solid #334155" : "1px solid #e2e8f0",
                     position: "relative",
                   }}
                 >
@@ -466,7 +507,7 @@ const ScrollableChat = ({
                     <Text
                       fontSize="10px"
                       fontWeight="700"
-                      color="blue.600"
+                      color={isDark ? "blue.300" : "blue.600"}
                       mb={0.5}
                     >
                       {m.sender?.name}
@@ -481,8 +522,8 @@ const ScrollableChat = ({
                       gap={1}
                       px={2}
                       py={0.5}
-                      bg={isSender ? "whiteAlpha.300" : "yellow.100"}
-                      color={isSender ? "yellow.200" : "yellow.800"}
+                      bg={isSender ? "whiteAlpha.300" : isDark ? "yellow.900" : "yellow.100"}
+                      color={isSender ? "yellow.200" : isDark ? "yellow.200" : "yellow.800"}
                       borderRadius="full"
                       fontSize="9px"
                       fontWeight="700"
@@ -496,7 +537,7 @@ const ScrollableChat = ({
                   {/* Quoted Reply Box */}
                   {m.replyTo && (
                     <Box
-                      bg={isSender ? "rgba(0, 0, 0, 0.15)" : "gray.50"}
+                      bg={isSender ? "rgba(0, 0, 0, 0.15)" : isDark ? "rgba(255, 255, 255, 0.07)" : "gray.50"}
                       borderLeft="3px solid"
                       borderColor={isSender ? "white" : "blue.500"}
                       p={1.5}
@@ -563,7 +604,7 @@ const ScrollableChat = ({
                       opacity={m.isDeleted ? 0.7 : 1}
                       wordBreak="break-word"
                     >
-                      {m.content}
+                      <HighlightedText text={m.content} query={searchQuery} isSender={isSender} />
                     </Text>
                   )}
 
@@ -596,7 +637,7 @@ const ScrollableChat = ({
                     ></i>
                     <Text
                       fontSize="9px"
-                      color={isSender ? "whiteAlpha.800" : "gray.400"}
+                      color={isSender ? "whiteAlpha.800" : isDark ? "gray.400" : "gray.500"}
                       fontWeight="500"
                     >
                       {formatMessageTime(m.createdAt)}

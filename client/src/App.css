@@ -402,3 +402,23 @@ body.chakra-ui-dark {
 .theme-dark .chakra-modal__close-btn {
   color: #94a3b8 !important;
 }
+
+/* Background Server Warmup Pulse Animation */
+.pulse-dot {
+  animation: pulse-warmup 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse-warmup {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+  }
+  70% {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}

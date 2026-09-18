@@ -9,13 +9,19 @@ import {
   InputRightElement,
   VStack,
   useToast,
+  Box,
+  HStack,
+  Text,
+  Spinner,
 } from "@chakra-ui/react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { ChatState } from "../../Context/ChatProvider";
+import { useServerWarmup, getBackendEndpoint } from "../../utils/serverWarmup";
 
 const Register = () => {
   const { isDark } = ChatState() || {};
+  const { isReady } = useServerWarmup();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -28,6 +34,7 @@ const Register = () => {
   const [pic, setPic] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploadingPic, setUploadingPic] = useState(false);
+  const [wakingWait, setWakingWait] = useState(false);
 
   const handleClick = () => setShow(!show);
 
@@ -106,15 +113,23 @@ const Register = () => {
       return;
     }
 
+    if (!isReady) {
+      setWakingWait(true);
+    }
+
     try {
       const config = {
         headers: {
           "Content-type": "application/json",
         },
+        timeout: 45000, // 45s for Render standby cold boots
       };
 
+      const endpoint = getBackendEndpoint();
+      const registerUrl = `${endpoint.replace(/\/+$/, "")}/api/user`;
+
       const { data } = await axios.post(
-        "/api/user",
+        registerUrl,
         {
           name: name.trim(),
           email: email.trim().toLowerCase(),
@@ -135,15 +150,18 @@ const Register = () => {
 
       localStorage.setItem("userInfo", JSON.stringify(data));
       setLoading(false);
+      setWakingWait(false);
       navigate("/chats");
     } catch (error) {
       setLoading(false);
+      setWakingWait(false);
       toast({
         title: "Error Occurred",
         description:
           error.response?.data?.message ||
-          error.message ||
-          "Registration failed",
+          (error.code === "ECONNABORTED"
+            ? "Server is waking up. Please retry in a few seconds."
+            : error.message || "Registration failed"),
         status: "error",
         duration: 4000,
         isClosable: true,
@@ -153,14 +171,29 @@ const Register = () => {
   };
 
   return (
-    <VStack spacing={3} as="form" onSubmit={(e) => { e.preventDefault(); submitHandler(); }}>
+    <VStack
+      spacing={3}
+      as="form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submitHandler();
+      }}
+    >
       <FormControl id="register-name" isRequired>
-        <FormLabel fontSize="xs" fontWeight="700" color={isDark ? "gray.200" : "gray.700"} mb={1}>
+        <FormLabel
+          fontSize="xs"
+          fontWeight="700"
+          color={isDark ? "gray.200" : "gray.700"}
+          mb={1}
+        >
           Name
         </FormLabel>
         <InputGroup>
-          <InputLeftElement pointerEvents="none" color={isDark ? "gray.400" : "gray.400"}>
-            <i className="fa-solid fa-user" style={{ fontSize: "13px" }}></i>
+          <InputLeftElement
+            pointerEvents="none"
+            color={isDark ? "gray.400" : "gray.400"}
+          >
+            <i className="fa-solid fa-user" style={{ fontSize: "13px" }} />
           </InputLeftElement>
           <Input
             placeholder="Your display name"
@@ -171,7 +204,11 @@ const Register = () => {
             color={isDark ? "white" : "gray.900"}
             borderWidth="1px"
             borderColor={isDark ? "gray.700" : "gray.200"}
-            _focus={{ bg: isDark ? "gray.800" : "white", borderColor: "blue.500", boxShadow: "0 0 0 1px #3b82f6" }}
+            _focus={{
+              bg: isDark ? "gray.800" : "white",
+              borderColor: "blue.500",
+              boxShadow: "0 0 0 1px #3b82f6",
+            }}
             _placeholder={{ color: isDark ? "gray.500" : "gray.400" }}
             aria-label="Name"
           />
@@ -179,12 +216,20 @@ const Register = () => {
       </FormControl>
 
       <FormControl id="register-email" isRequired>
-        <FormLabel fontSize="xs" fontWeight="700" color={isDark ? "gray.200" : "gray.700"} mb={1}>
+        <FormLabel
+          fontSize="xs"
+          fontWeight="700"
+          color={isDark ? "gray.200" : "gray.700"}
+          mb={1}
+        >
           Email Address
         </FormLabel>
         <InputGroup>
-          <InputLeftElement pointerEvents="none" color={isDark ? "gray.400" : "gray.400"}>
-            <i className="fa-solid fa-envelope" style={{ fontSize: "13px" }}></i>
+          <InputLeftElement
+            pointerEvents="none"
+            color={isDark ? "gray.400" : "gray.400"}
+          >
+            <i className="fa-solid fa-envelope" style={{ fontSize: "13px" }} />
           </InputLeftElement>
           <Input
             type="email"
@@ -196,7 +241,11 @@ const Register = () => {
             color={isDark ? "white" : "gray.900"}
             borderWidth="1px"
             borderColor={isDark ? "gray.700" : "gray.200"}
-            _focus={{ bg: isDark ? "gray.800" : "white", borderColor: "blue.500", boxShadow: "0 0 0 1px #3b82f6" }}
+            _focus={{
+              bg: isDark ? "gray.800" : "white",
+              borderColor: "blue.500",
+              boxShadow: "0 0 0 1px #3b82f6",
+            }}
             _placeholder={{ color: isDark ? "gray.500" : "gray.400" }}
             aria-label="Email Address"
             autoComplete="email"
@@ -205,12 +254,20 @@ const Register = () => {
       </FormControl>
 
       <FormControl id="register-bio">
-        <FormLabel fontSize="xs" fontWeight="700" color={isDark ? "gray.200" : "gray.700"} mb={1}>
+        <FormLabel
+          fontSize="xs"
+          fontWeight="700"
+          color={isDark ? "gray.200" : "gray.700"}
+          mb={1}
+        >
           Bio / Status (Optional)
         </FormLabel>
         <InputGroup>
-          <InputLeftElement pointerEvents="none" color={isDark ? "gray.400" : "gray.400"}>
-            <i className="fa-solid fa-pen-fancy" style={{ fontSize: "13px" }}></i>
+          <InputLeftElement
+            pointerEvents="none"
+            color={isDark ? "gray.400" : "gray.400"}
+          >
+            <i className="fa-solid fa-pen-fancy" style={{ fontSize: "13px" }} />
           </InputLeftElement>
           <Input
             placeholder="Status or quote..."
@@ -221,7 +278,11 @@ const Register = () => {
             color={isDark ? "white" : "gray.900"}
             borderWidth="1px"
             borderColor={isDark ? "gray.700" : "gray.200"}
-            _focus={{ bg: isDark ? "gray.800" : "white", borderColor: "blue.500", boxShadow: "0 0 0 1px #3b82f6" }}
+            _focus={{
+              bg: isDark ? "gray.800" : "white",
+              borderColor: "blue.500",
+              boxShadow: "0 0 0 1px #3b82f6",
+            }}
             _placeholder={{ color: isDark ? "gray.500" : "gray.400" }}
             aria-label="Bio or status"
           />
@@ -229,12 +290,20 @@ const Register = () => {
       </FormControl>
 
       <FormControl id="register-password" isRequired>
-        <FormLabel fontSize="xs" fontWeight="700" color={isDark ? "gray.200" : "gray.700"} mb={1}>
+        <FormLabel
+          fontSize="xs"
+          fontWeight="700"
+          color={isDark ? "gray.200" : "gray.700"}
+          mb={1}
+        >
           Password
         </FormLabel>
         <InputGroup>
-          <InputLeftElement pointerEvents="none" color={isDark ? "gray.400" : "gray.400"}>
-            <i className="fa-solid fa-lock" style={{ fontSize: "13px" }}></i>
+          <InputLeftElement
+            pointerEvents="none"
+            color={isDark ? "gray.400" : "gray.400"}
+          >
+            <i className="fa-solid fa-lock" style={{ fontSize: "13px" }} />
           </InputLeftElement>
           <Input
             type={show ? "text" : "password"}
@@ -246,7 +315,11 @@ const Register = () => {
             color={isDark ? "white" : "gray.900"}
             borderWidth="1px"
             borderColor={isDark ? "gray.700" : "gray.200"}
-            _focus={{ bg: isDark ? "gray.800" : "white", borderColor: "blue.500", boxShadow: "0 0 0 1px #3b82f6" }}
+            _focus={{
+              bg: isDark ? "gray.800" : "white",
+              borderColor: "blue.500",
+              boxShadow: "0 0 0 1px #3b82f6",
+            }}
             _placeholder={{ color: isDark ? "gray.500" : "gray.400" }}
             aria-label="Password"
             autoComplete="new-password"
@@ -269,12 +342,20 @@ const Register = () => {
       </FormControl>
 
       <FormControl id="register-confirm-password" isRequired>
-        <FormLabel fontSize="xs" fontWeight="700" color={isDark ? "gray.200" : "gray.700"} mb={1}>
+        <FormLabel
+          fontSize="xs"
+          fontWeight="700"
+          color={isDark ? "gray.200" : "gray.700"}
+          mb={1}
+        >
           Confirm Password
         </FormLabel>
         <InputGroup>
-          <InputLeftElement pointerEvents="none" color={isDark ? "gray.400" : "gray.400"}>
-            <i className="fa-solid fa-shield-check" style={{ fontSize: "13px" }}></i>
+          <InputLeftElement
+            pointerEvents="none"
+            color={isDark ? "gray.400" : "gray.400"}
+          >
+            <i className="fa-solid fa-shield-check" style={{ fontSize: "13px" }} />
           </InputLeftElement>
           <Input
             type={show ? "text" : "password"}
@@ -286,7 +367,11 @@ const Register = () => {
             color={isDark ? "white" : "gray.900"}
             borderWidth="1px"
             borderColor={isDark ? "gray.700" : "gray.200"}
-            _focus={{ bg: isDark ? "gray.800" : "white", borderColor: "blue.500", boxShadow: "0 0 0 1px #3b82f6" }}
+            _focus={{
+              bg: isDark ? "gray.800" : "white",
+              borderColor: "blue.500",
+              boxShadow: "0 0 0 1px #3b82f6",
+            }}
             _placeholder={{ color: isDark ? "gray.500" : "gray.400" }}
             aria-label="Confirm Password"
             autoComplete="new-password"
@@ -309,7 +394,12 @@ const Register = () => {
       </FormControl>
 
       <FormControl id="register-pic">
-        <FormLabel fontSize="xs" fontWeight="700" color={isDark ? "gray.200" : "gray.700"} mb={1}>
+        <FormLabel
+          fontSize="xs"
+          fontWeight="700"
+          color={isDark ? "gray.200" : "gray.700"}
+          mb={1}
+        >
           Avatar / Profile Picture (Optional)
         </FormLabel>
         <Input
@@ -326,6 +416,25 @@ const Register = () => {
         />
       </FormControl>
 
+      {/* Standby Warmup Notice */}
+      {wakingWait && (
+        <Box
+          w="100%"
+          p={2}
+          bg={isDark ? "blue.950" : "blue.50"}
+          borderWidth="1px"
+          borderColor={isDark ? "blue.900" : "blue.200"}
+          borderRadius="xl"
+        >
+          <HStack spacing={2}>
+            <Spinner size="xs" color="blue.500" />
+            <Text fontSize="11px" color={isDark ? "blue.200" : "blue.700"} fontWeight="600">
+              Waking up cloud service... Creating account shortly.
+            </Text>
+          </HStack>
+        </Box>
+      )}
+
       <Button
         type="submit"
         colorScheme="blue"
@@ -335,6 +444,7 @@ const Register = () => {
         style={{ marginTop: 12 }}
         onClick={submitHandler}
         isLoading={loading || uploadingPic}
+        loadingText={wakingWait ? "Waking Cloud..." : "Creating Account..."}
         borderRadius="xl"
         py={6}
         fontSize="sm"

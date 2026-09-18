@@ -10,13 +10,19 @@ import {
   Button,
   useToast,
   Divider,
+  Box,
+  Text,
+  HStack,
+  Spinner,
 } from "@chakra-ui/react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { ChatState } from "../../Context/ChatProvider";
+import { useServerWarmup, getBackendEndpoint } from "../../utils/serverWarmup";
 
 const Login = () => {
   const { isDark } = ChatState() || {};
+  const { isReady } = useServerWarmup();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -24,6 +30,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [wakingWait, setWakingWait] = useState(false);
 
   const handleClick = () => setShow(!show);
 
@@ -40,15 +47,24 @@ const Login = () => {
       setLoading(false);
       return;
     }
+
+    if (!isReady) {
+      setWakingWait(true);
+    }
+
     try {
       const config = {
         headers: {
           "Content-type": "application/json",
         },
+        timeout: 45000, // 45s for Render standby cold boots
       };
 
+      const endpoint = getBackendEndpoint();
+      const loginUrl = `${endpoint.replace(/\/+$/, "")}/api/user/login`;
+
       const { data } = await axios.post(
-        "/api/user/login",
+        loginUrl,
         { email: email.trim().toLowerCase(), password },
         config
       );
@@ -63,15 +79,18 @@ const Login = () => {
 
       localStorage.setItem("userInfo", JSON.stringify(data));
       setLoading(false);
+      setWakingWait(false);
       navigate("/chats");
     } catch (error) {
       setLoading(false);
+      setWakingWait(false);
       toast({
         title: "Error Occurred",
         description:
           error.response?.data?.message ||
-          error.message ||
-          "Invalid Email or Password",
+          (error.code === "ECONNABORTED"
+            ? "Server is still waking up. Please try again in 5 seconds."
+            : error.message || "Invalid Email or Password"),
         status: "error",
         duration: 4000,
         isClosable: true,
@@ -81,14 +100,29 @@ const Login = () => {
   };
 
   return (
-    <VStack spacing={4} as="form" onSubmit={(e) => { e.preventDefault(); submitHandler(); }}>
+    <VStack
+      spacing={4}
+      as="form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        submitHandler();
+      }}
+    >
       <FormControl id="login-email" isRequired>
-        <FormLabel fontSize="xs" fontWeight="700" color={isDark ? "gray.200" : "gray.700"} mb={1.5}>
+        <FormLabel
+          fontSize="xs"
+          fontWeight="700"
+          color={isDark ? "gray.200" : "gray.700"}
+          mb={1.5}
+        >
           Email Address
         </FormLabel>
         <InputGroup>
-          <InputLeftElement pointerEvents="none" color={isDark ? "gray.400" : "gray.400"}>
-            <i className="fa-solid fa-envelope" style={{ fontSize: "14px" }}></i>
+          <InputLeftElement
+            pointerEvents="none"
+            color={isDark ? "gray.400" : "gray.400"}
+          >
+            <i className="fa-solid fa-envelope" style={{ fontSize: "14px" }} />
           </InputLeftElement>
           <Input
             type="email"
@@ -100,7 +134,11 @@ const Login = () => {
             color={isDark ? "white" : "gray.900"}
             borderWidth="1px"
             borderColor={isDark ? "gray.700" : "gray.200"}
-            _focus={{ bg: isDark ? "gray.800" : "white", borderColor: "blue.500", boxShadow: "0 0 0 1px #3b82f6" }}
+            _focus={{
+              bg: isDark ? "gray.800" : "white",
+              borderColor: "blue.500",
+              boxShadow: "0 0 0 1px #3b82f6",
+            }}
             _placeholder={{ color: isDark ? "gray.500" : "gray.400" }}
             aria-label="Email Address"
             autoComplete="email"
@@ -109,12 +147,20 @@ const Login = () => {
       </FormControl>
 
       <FormControl id="login-password" isRequired>
-        <FormLabel fontSize="xs" fontWeight="700" color={isDark ? "gray.200" : "gray.700"} mb={1.5}>
+        <FormLabel
+          fontSize="xs"
+          fontWeight="700"
+          color={isDark ? "gray.200" : "gray.700"}
+          mb={1.5}
+        >
           Password
         </FormLabel>
         <InputGroup>
-          <InputLeftElement pointerEvents="none" color={isDark ? "gray.400" : "gray.400"}>
-            <i className="fa-solid fa-lock" style={{ fontSize: "14px" }}></i>
+          <InputLeftElement
+            pointerEvents="none"
+            color={isDark ? "gray.400" : "gray.400"}
+          >
+            <i className="fa-solid fa-lock" style={{ fontSize: "14px" }} />
           </InputLeftElement>
           <Input
             type={show ? "text" : "password"}
@@ -126,7 +172,11 @@ const Login = () => {
             color={isDark ? "white" : "gray.900"}
             borderWidth="1px"
             borderColor={isDark ? "gray.700" : "gray.200"}
-            _focus={{ bg: isDark ? "gray.800" : "white", borderColor: "blue.500", boxShadow: "0 0 0 1px #3b82f6" }}
+            _focus={{
+              bg: isDark ? "gray.800" : "white",
+              borderColor: "blue.500",
+              boxShadow: "0 0 0 1px #3b82f6",
+            }}
             _placeholder={{ color: isDark ? "gray.500" : "gray.400" }}
             aria-label="Password"
             autoComplete="current-password"
@@ -149,6 +199,25 @@ const Login = () => {
         </InputGroup>
       </FormControl>
 
+      {/* Standby Warmup Notice */}
+      {wakingWait && (
+        <Box
+          w="100%"
+          p={2.5}
+          bg={isDark ? "blue.950" : "blue.50"}
+          borderWidth="1px"
+          borderColor={isDark ? "blue.900" : "blue.200"}
+          borderRadius="xl"
+        >
+          <HStack spacing={2}>
+            <Spinner size="xs" color="blue.500" />
+            <Text fontSize="11px" color={isDark ? "blue.200" : "blue.700"} fontWeight="600">
+              Waking up cloud service... Connection established shortly.
+            </Text>
+          </HStack>
+        </Box>
+      )}
+
       <Button
         type="submit"
         colorScheme="blue"
@@ -157,6 +226,7 @@ const Login = () => {
         width="100%"
         onClick={submitHandler}
         isLoading={loading}
+        loadingText={wakingWait ? "Waking Cloud..." : "Signing In..."}
         borderRadius="xl"
         py={6}
         fontSize="sm"
@@ -182,7 +252,12 @@ const Login = () => {
         py={5}
         fontWeight="600"
         fontSize="xs"
-        leftIcon={<i className="fa-solid fa-wand-magic-sparkles" style={{ color: "#2563eb" }}></i>}
+        leftIcon={
+          <i
+            className="fa-solid fa-wand-magic-sparkles"
+            style={{ color: "#2563eb" }}
+          />
+        }
         onClick={() => {
           setEmail("guest@example.com");
           setPassword("123456");

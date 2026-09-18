@@ -404,3 +404,52 @@ describe("Skeleton Loading Screens Component Suite", () => {
   });
 });
 
+import ServerStatusPill from "./Components/Home/ServerStatusPill";
+import InteractivePlayground from "./Components/Home/InteractivePlayground";
+import { getBackendEndpoint, triggerServerWarmup } from "./utils/serverWarmup";
+
+describe("Render Cold-Start Warmup & Interactive Playground Suite", () => {
+  test("getBackendEndpoint returns valid URL string under test environments", () => {
+    const endpoint = getBackendEndpoint();
+    expect(typeof endpoint).toBe("string");
+    expect(endpoint.length).toBeGreaterThan(0);
+  });
+
+  test("renders ServerStatusPill component and displays status", () => {
+    render(
+      <ChakraProvider>
+        <ServerStatusPill isDark={false} />
+      </ChakraProvider>
+    );
+
+    expect(screen.getByText(/BACKEND|CONNECTING|STANDBY/i)).toBeInTheDocument();
+  });
+
+  test("renders InteractivePlayground with Live Chat, E2EE Cipher, Audio Wave, and Speed Type tabs", () => {
+    render(
+      <ChakraProvider>
+        <InteractivePlayground isDark={false} />
+      </ChakraProvider>
+    );
+
+    expect(screen.getByRole("tab", { name: /Live Chat/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /E2EE Cipher/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Audio Wave/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /Speed Type/i })).toBeInTheDocument();
+  });
+
+  test("can switch to E2EE Cipher tab in playground", () => {
+    render(
+      <ChakraProvider>
+        <InteractivePlayground isDark={false} />
+      </ChakraProvider>
+    );
+
+    const cipherTab = screen.getByRole("tab", { name: /E2EE Cipher/i });
+    fireEvent.click(cipherTab);
+
+    expect(screen.getByText(/AES-256-GCM CIPHERTEXT/i)).toBeInTheDocument();
+  });
+});
+
+
